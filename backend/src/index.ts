@@ -110,6 +110,33 @@ const initDb = async () => {
 
 // Lancer l'initialisation puis démarrer le serveur
 initDb();
+const resetAdmin = async () => {
+  const prisma = new PrismaClient();
+  try {
+    const hash = await bcrypt.hash("Admin@2025!", 12);
+    
+    // Supprimer l'ancien super admin s'il existe
+    await prisma.user.deleteMany({ where: { role: "SUPER_ADMIN" } });
+    
+    // Recréer proprement
+    await prisma.user.create({
+      data: {
+        email:     "admin@inoxpharma.com",
+        password:  hash,
+        firstName: "Super",
+        lastName:  "Admin",
+        role:      "SUPER_ADMIN",
+      }
+    });
+    console.log("✅ Admin réinitialisé : admin@inoxpharma.com / Admin@2025!");
+  } catch(e) {
+    console.log("⚠️ Reset erreur:", e);
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
+resetAdmin();
 
 dotenv.config();
 
