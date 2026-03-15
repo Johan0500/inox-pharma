@@ -25,7 +25,12 @@ try {
 } catch (e) {
   console.log("⚠️ Migrations:", e);
 }
-
+try {
+  execSync("node_modules/.bin/ts-node prisma/seed.ts", { stdio: "inherit" });
+  console.log("✅ Seed appliqué");
+} catch (e) {
+  console.log("⚠️ Seed déjà fait ou erreur");
+}
 dotenv.config();
 
 const app = express();
