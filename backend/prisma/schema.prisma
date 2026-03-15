@@ -6,7 +6,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-// ─── ENUMS ─────────────────────────────────────────────────────
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -20,7 +19,6 @@ enum DelegateStatus {
   INACTIF
 }
 
-// ─── UTILISATEURS ──────────────────────────────────────────────
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -39,8 +37,6 @@ model User {
   delegate     Delegate?
 }
 
-// ─── LABORATOIRES ──────────────────────────────────────────────
-// lic-pharma | medisure | sigma | ephaco | stallion
 model Laboratory {
   id        String   @id @default(cuid())
   name      String   @unique 
@@ -62,8 +58,6 @@ model AdminLaboratory {
   @@id([userId, laboratoryId])
 }
 
-// ─── GROSSISTES ────────────────────────────────────────────────
-// tedis | copharmed | laborex | dpci
 model Grossiste {
   id        String   @id @default(cuid())
   name      String   @unique 
@@ -100,8 +94,6 @@ model GrossisteStock {
   grossisteLab GrossisteLaboratory @relation(fields: [grossisteId, laboratoryId], references: [grossisteId, laboratoryId])
 }
 
-// ─── PHARMACIES ────────────────────────────────────────────────
-// Importées depuis vos 4 fichiers Excel grossistes
 model Pharmacy {
   id          String    @id @default(cuid())
   grossisteId String?   
@@ -126,8 +118,6 @@ model Pharmacy {
   @@index([nom])
 }
 
-// ─── SECTORISATION ─────────────────────────────────────────────
-// Depuis SECTORISATION_PAYS_2026.xlsx
 model Sector {
   id            String     @id @default(cuid())
   numero        Int
@@ -143,7 +133,6 @@ model Sector {
   @@index([type])
 }
 
-// ─── DÉLÉGUÉS ──────────────────────────────────────────────────
 model Delegate {
   id           String         @id @default(cuid())
   userId       String         @unique 
@@ -165,7 +154,6 @@ model Delegate {
   planning     WeeklyPlanning[]
 }
 
-// ─── GPS LOGS ──────────────────────────────────────────────────
 model GPSLog {
   id         String         @id @default(cuid())
   delegateId String         
@@ -180,8 +168,6 @@ model GPSLog {
   @@index([timestamp])
 }
 
-// ─── PRODUITS ──────────────────────────────────────────────────
-// Depuis STRATEGIE_I_Par_Spécialété.xlsx
 model Product {
   id          String   @id @default(cuid())
   name        String   @unique 
@@ -195,8 +181,6 @@ model Product {
   @@index([group])
 }
 
-// ─── PLANNING HEBDOMADAIRE ─────────────────────────────────────
-// Depuis SEMENIER_ABIDJAN_INOXPHARMA_MAI_2024.xlsx
 model WeeklyPlanning {
   id         String   @id @default(cuid())
   delegateId String   
@@ -216,7 +200,6 @@ model WeeklyPlanning {
   @@index([month])
 }
 
-// ─── RAPPORTS DE VISITE ────────────────────────────────────────
 model VisitReport {
   id            String     @id @default(cuid())
   delegateId    String     
