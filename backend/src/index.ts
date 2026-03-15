@@ -33,9 +33,9 @@ const initDb = async () => {
   // 2. Seed ensuite — les tables existent maintenant
   const prisma = new PrismaClient();
   try {
-    const count = await prisma.laboratory.count();
+    const count = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
     if (count > 0) {
-      console.log("ℹ️ Base déjà initialisée");
+      console.log("ℹ️ Super Admin existe deja");
       await prisma.$disconnect();
       return;
     }
