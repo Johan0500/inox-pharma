@@ -17,6 +17,14 @@ import planningRoutes  from "./routes/planning";
 import statsRoutes     from "./routes/stats";
 import sectorRoutes    from "./routes/sectors";
 import { setupGPSSocket } from "./socket/gpsSocket";
+import { execSync } from "child_process";
+
+try {
+  execSync("node_modules/.bin/prisma migrate deploy", { stdio: "inherit" });
+  console.log("✅ Migrations appliquées");
+} catch (e) {
+  console.log("⚠️ Migrations:", e);
+}
 
 dotenv.config();
 
