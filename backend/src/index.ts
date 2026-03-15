@@ -19,18 +19,56 @@ import sectorRoutes    from "./routes/sectors";
 import { setupGPSSocket } from "./socket/gpsSocket";
 import { execSync } from "child_process";
 
+// Migration
 try {
   execSync("node_modules/.bin/prisma migrate deploy", { stdio: "inherit" });
   console.log("✅ Migrations appliquées");
 } catch (e) {
   console.log("⚠️ Migrations:", e);
 }
-try {
-  execSync("node_modules/.bin/ts-node prisma/seed.ts", { stdio: "inherit" });
-  console.log("✅ Seed appliqué");
-} catch (e) {
-  console.log("⚠️ Seed déjà fait ou erreur");
-}
+
+// Seed intégré directement
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const seedDb = async () => {
+  const prisma = new PrismaClient();
+  try {
+    const count = await prisma.laboratory.count();
+    if (count > 0) {
+      console.log("ℹ️ Base déjà initialisée");
+      return;
+    }
+    const labs = ["lic-pharma","medisure","sigma","ephaco","stallion"];
+    for (const name of labs) {
+      await prisma.laboratory.upsert({ where:{name}, update:{}, create:{name} });
+    }
+    const grossistes = ["tedis","copharmed","laborex","dpci"];
+    for (const name of grossistes) {
+      await prisma.grossiste.upsert({ where:{name}, update:{}, create:{name} });
+    }
+    const hash = await bcrypt.hash("SuperAdmin@2025!", 12);
+    const sa = await prisma.user.findFirst({ where:{ role:"SUPER_ADMIN" } });
+    if (!sa) {
+      await prisma.user.create({
+        data: {
+          email:"superadmin@inoxpharma.com",
+          password: hash,
+          firstName:"Super",
+          lastName:"Admin",
+          role:"SUPER_ADMIN",
+        }
+      });
+    }
+    console.log("✅ Base initialisée avec succès");
+  } catch(e) {
+    console.log("⚠️ Seed erreur:", e);
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
+seedDb();
 dotenv.config();
 
 const app = express();
