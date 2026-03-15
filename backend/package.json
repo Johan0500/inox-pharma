@@ -4,15 +4,14 @@
   "description": "INOX PHARMA Backend API",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "node node_modules/.bin/prisma generate && node node_modules/typescript/bin/tsc",
-    "start": "node dist/index.js",
-    "db:migrate": "prisma migrate dev",
-    "db:seed": "ts-node prisma/seed.ts",
-    "db:import": "ts-node src/scripts/importExcel.ts",
-    "db:planning": "ts-node src/scripts/importPlanning.ts",
-    "db:studio": "prisma studio"
-  },
+  "dev":        "nodemon --exec ts-node src/index.ts",
+  "preinstall": "npm install -g prisma",
+  "build":      "prisma generate && tsc",
+  "start":      "node dist/index.js",
+  "postinstall": "prisma generate",
+  "db:migrate": "prisma migrate deploy",
+  "db:seed":    "ts-node prisma/seed.ts"
+},
   "dependencies": {
     "@prisma/client": "^5.10.0",
     "bcryptjs": "^2.4.3",
