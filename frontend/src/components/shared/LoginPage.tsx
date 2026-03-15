@@ -10,19 +10,18 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await api.post("/auth/login", { email, password });
-      login(res.data.token, res.data.user);
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Erreur de connexion. Vérifiez vos identifiants.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  e.preventDefault();
+  setError("");
+  setLoading(true);
+  try {
+    const res = await api.post("/auth/login", { email, password });
+    login(res.data.token, res.data.user);
+  } catch (err: any) {
+    setError(err.response?.data?.error || "Erreur de connexion.");
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
