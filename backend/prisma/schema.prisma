@@ -3,10 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
 // ─── ENUMS ─────────────────────────────────────────────────────
 enum Role {
   SUPER_ADMIN
@@ -24,15 +23,15 @@ enum DelegateStatus {
 // ─── UTILISATEURS ──────────────────────────────────────────────
 model User {
   id           String    @id @default(cuid())
-  email        String    @unique @db.VarChar(255)
-  password     String    @db.VarChar(255)
-  firstName    String    @db.VarChar(100)
-  lastName     String    @db.VarChar(100)
+  email        String    @unique
+  password     String
+  firstName    String    
+  lastName     String    
   role         Role      @default(DELEGATE)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  createdById  String?   @db.VarChar(30)
+  createdById  String?   
 
   createdBy    User?     @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers User[]    @relation("UserCreator")
@@ -44,7 +43,7 @@ model User {
 // lic-pharma | medisure | sigma | ephaco | stallion
 model Laboratory {
   id        String   @id @default(cuid())
-  name      String   @unique @db.VarChar(100)
+  name      String   @unique 
   createdAt DateTime @default(now())
 
   admins    AdminLaboratory[]
@@ -54,8 +53,8 @@ model Laboratory {
 }
 
 model AdminLaboratory {
-  userId       String @db.VarChar(30)
-  laboratoryId String @db.VarChar(30)
+  userId       String 
+  laboratoryId String 
 
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
@@ -67,7 +66,7 @@ model AdminLaboratory {
 // tedis | copharmed | laborex | dpci
 model Grossiste {
   id        String   @id @default(cuid())
-  name      String   @unique @db.VarChar(100)
+  name      String   @unique 
   createdAt DateTime @default(now())
 
   labs       GrossisteLaboratory[]
@@ -75,13 +74,13 @@ model Grossiste {
 }
 
 model GrossisteLaboratory {
-  grossisteId  String @db.VarChar(30)
-  laboratoryId String @db.VarChar(30)
+  grossisteId  String 
+  laboratoryId String 
 
   grossiste    Grossiste  @relation(fields: [grossisteId], references: [id])
   laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
   updatedAt    DateTime   @updatedAt
-  updatedById  String?    @db.VarChar(30)
+  updatedById  String?    
 
   stocks GrossisteStock[]
 
@@ -90,12 +89,12 @@ model GrossisteLaboratory {
 
 model GrossisteStock {
   id           String   @id @default(cuid())
-  grossisteId  String   @db.VarChar(30)
-  laboratoryId String   @db.VarChar(30)
-  productName  String   @db.VarChar(200)
+  grossisteId  String   
+  laboratoryId String   
+  productName  String   
   quantity     Int      @default(0)
   unitPrice    Float    @default(0)
-  month        String   @db.VarChar(10)
+  month        String   
   updatedAt    DateTime @updatedAt
 
   grossisteLab GrossisteLaboratory @relation(fields: [grossisteId, laboratoryId], references: [grossisteId, laboratoryId])
@@ -105,16 +104,16 @@ model GrossisteStock {
 // Importées depuis vos 4 fichiers Excel grossistes
 model Pharmacy {
   id          String    @id @default(cuid())
-  grossisteId String?   @db.VarChar(30)
-  codeClient  String?   @db.VarChar(50)
-  nom         String    @db.VarChar(255)
-  pharmacien  String?   @db.VarChar(255)
-  adresse     String?   @db.VarChar(255)
-  ville       String?   @db.VarChar(150)
-  region      String?   @db.VarChar(150)
-  province    String?   @db.VarChar(150)
-  telephone   String?   @db.VarChar(100)
-  email       String?   @db.VarChar(255)
+  grossisteId String?   
+  codeClient  String?   
+  nom         String
+  pharmacien  String?
+  adresse     String?
+  ville       String?   
+  region      String?   
+  province    String?   
+  telephone   String?   
+  email       String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
 
@@ -132,11 +131,11 @@ model Pharmacy {
 model Sector {
   id            String     @id @default(cuid())
   numero        Int
-  delegateName  String?    @db.VarChar(255)
-  zoneResidence String     @db.VarChar(255)
-  peripherie    String?    @db.LongText
-  axesMission   String?    @db.LongText
-  type          String     @db.VarChar(20)
+  delegateName  String?
+  zoneResidence String
+  peripherie    String?    
+  axesMission   String?    
+  type          String     
   createdAt     DateTime   @default(now())
 
   delegates     Delegate[]
@@ -147,11 +146,11 @@ model Sector {
 // ─── DÉLÉGUÉS ──────────────────────────────────────────────────
 model Delegate {
   id           String         @id @default(cuid())
-  userId       String         @unique @db.VarChar(30)
-  laboratoryId String         @db.VarChar(30)
-  sectorId     String?        @db.VarChar(30)
-  zone         String         @db.VarChar(255)
-  phone        String?        @db.VarChar(50)
+  userId       String         @unique 
+  laboratoryId String         
+  sectorId     String?        
+  zone         String
+  phone        String?        
   status       DelegateStatus @default(INACTIF)
   lastLat      Float?
   lastLng      Float?
@@ -169,7 +168,7 @@ model Delegate {
 // ─── GPS LOGS ──────────────────────────────────────────────────
 model GPSLog {
   id         String         @id @default(cuid())
-  delegateId String         @db.VarChar(30)
+  delegateId String         
   latitude   Float
   longitude  Float
   status     DelegateStatus
@@ -185,10 +184,10 @@ model GPSLog {
 // Depuis STRATEGIE_I_Par_Spécialété.xlsx
 model Product {
   id          String   @id @default(cuid())
-  name        String   @unique @db.VarChar(100)
-  group       String   @db.VarChar(50)
-  specialty   String   @db.VarChar(100)
-  description String?  @db.Text
+  name        String   @unique 
+  group       String   
+  specialty   String   
+  description String?  
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
@@ -200,15 +199,15 @@ model Product {
 // Depuis SEMENIER_ABIDJAN_INOXPHARMA_MAI_2024.xlsx
 model WeeklyPlanning {
   id         String   @id @default(cuid())
-  delegateId String   @db.VarChar(30)
+  delegateId String   
   weekNumber Int
-  zone       String   @db.VarChar(100)
-  lundi      String?  @db.LongText
-  mardi      String?  @db.LongText
-  mercredi   String?  @db.LongText
-  jeudi      String?  @db.LongText
-  vendredi   String?  @db.LongText
-  month      String   @db.VarChar(10)
+  zone       String   
+  lundi      String?  
+  mardi      String?  
+  mercredi   String?  
+  jeudi      String?  
+  vendredi   String?  
+  month      String   
   createdAt  DateTime @default(now())
 
   delegate   Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
@@ -220,14 +219,14 @@ model WeeklyPlanning {
 // ─── RAPPORTS DE VISITE ────────────────────────────────────────
 model VisitReport {
   id            String     @id @default(cuid())
-  delegateId    String     @db.VarChar(30)
-  laboratoryId  String     @db.VarChar(30)
-  pharmacyId    String?    @db.VarChar(30)
-  doctorName    String     @db.VarChar(255)
-  specialty     String?    @db.VarChar(100)
-  productsShown String?    @db.Text
-  notes         String     @db.LongText
-  aiSummary     String?    @db.LongText
+  delegateId    String     
+  laboratoryId  String     
+  pharmacyId    String?    
+  doctorName    String
+  specialty     String?    
+  productsShown String?    
+  notes         String     
+  aiSummary     String?    
   visitDate     DateTime   @default(now())
   createdAt     DateTime   @default(now())
 
