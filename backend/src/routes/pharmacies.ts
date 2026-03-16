@@ -18,7 +18,7 @@ router.get("/", authenticate, async (req, res) => {
       limit = "50",
     } = req.query as any;
 
-    const where: any = { isActive: true };
+    const where: any = {};
 
     if (grossiste) {
       const g = await prisma.grossiste.findUnique({ where: { name: grossiste } });

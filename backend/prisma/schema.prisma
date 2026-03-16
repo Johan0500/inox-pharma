@@ -3,9 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
+
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -23,14 +25,13 @@ model User {
   id           String    @id @default(cuid())
   email        String    @unique
   password     String
-  firstName    String    
-  lastName     String    
+  firstName    String
+  lastName     String
   role         Role      @default(DELEGATE)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  createdById  String?   
-
+  createdById  String?
   createdBy    User?     @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers User[]    @relation("UserCreator")
   adminLabs    AdminLaboratory[]
@@ -39,9 +40,8 @@ model User {
 
 model Laboratory {
   id        String   @id @default(cuid())
-  name      String   @unique 
+  name      String   @unique
   createdAt DateTime @default(now())
-
   admins    AdminLaboratory[]
   grossLabs GrossisteLaboratory[]
   delegates Delegate[]
@@ -49,73 +49,61 @@ model Laboratory {
 }
 
 model AdminLaboratory {
-  userId       String 
-  laboratoryId String 
-
+  userId       String
+  laboratoryId String
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
-
   @@id([userId, laboratoryId])
 }
 
 model Grossiste {
-  id        String   @id @default(cuid())
-  name      String   @unique 
-  createdAt DateTime @default(now())
-
+  id         String   @id @default(cuid())
+  name       String   @unique
+  createdAt  DateTime @default(now())
   labs       GrossisteLaboratory[]
   pharmacies Pharmacy[]
 }
 
 model GrossisteLaboratory {
-  grossisteId  String 
-  laboratoryId String 
-
+  grossisteId  String
+  laboratoryId String
   grossiste    Grossiste  @relation(fields: [grossisteId], references: [id])
   laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
   updatedAt    DateTime   @updatedAt
-  updatedById  String?    
-
-  stocks GrossisteStock[]
-
+  updatedById  String?
+  stocks       GrossisteStock[]
   @@id([grossisteId, laboratoryId])
 }
 
 model GrossisteStock {
   id           String   @id @default(cuid())
-  grossisteId  String   
-  laboratoryId String   
-  productName  String   
+  grossisteId  String
+  laboratoryId String
+  productName  String
   quantity     Int      @default(0)
   unitPrice    Float    @default(0)
-  month        String   
+  month        String
   updatedAt    DateTime @updatedAt
-
   grossisteLab GrossisteLaboratory @relation(fields: [grossisteId, laboratoryId], references: [grossisteId, laboratoryId])
 }
 
 model Pharmacy {
-  id          String    @id @default(cuid())
-  grossisteId String?   
-  codeClient  String?   
-  nom         String
-  pharmacien  String?
-  adresse     String?
-  ville       String?   
-  region      String?   
-  province    String?   
-  telephone   String?   
-  email       String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-
-  grossiste    Grossiste?    @relation(fields: [grossisteId], references: [id])
+  id           String    @id @default(cuid())
+  grossisteId  String?
+  codeClient   String?
+  nom          String
+  pharmacien   String?
+  adresse      String?
+  ville        String?
+  region       String?
+  province     String?
+  telephone    String?
+  email        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  grossiste    Grossiste?   @relation(fields: [grossisteId], references: [id])
   visitReports VisitReport[]
-
   @@unique([grossisteId, codeClient])
-  @@index([ville])
-  @@index([region])
-  @@index([nom])
 }
 
 model Sector {
@@ -123,29 +111,25 @@ model Sector {
   numero        Int
   delegateName  String?
   zoneResidence String
-  peripherie    String?    
-  axesMission   String?    
-  type          String     
+  peripherie    String?
+  axesMission   String?
+  type          String
   createdAt     DateTime   @default(now())
-
   delegates     Delegate[]
-
-  @@index([type])
 }
 
 model Delegate {
   id           String         @id @default(cuid())
-  userId       String         @unique 
-  laboratoryId String         
-  sectorId     String?        
+  userId       String         @unique
+  laboratoryId String
+  sectorId     String?
   zone         String
-  phone        String?        
+  phone        String?
   status       DelegateStatus @default(INACTIF)
   lastLat      Float?
   lastLng      Float?
   lastSeen     DateTime?
   createdAt    DateTime       @default(now())
-
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   laboratory   Laboratory     @relation(fields: [laboratoryId], references: [id])
   sector       Sector?        @relation(fields: [sectorId], references: [id])
@@ -156,67 +140,52 @@ model Delegate {
 
 model GPSLog {
   id         String         @id @default(cuid())
-  delegateId String         
+  delegateId String
   latitude   Float
   longitude  Float
   status     DelegateStatus
   timestamp  DateTime       @default(now())
-
   delegate   Delegate       @relation(fields: [delegateId], references: [id], onDelete: Cascade)
-
-  @@index([delegateId])
-  @@index([timestamp])
 }
 
 model Product {
   id          String   @id @default(cuid())
-  name        String   @unique 
-  group       String   
-  specialty   String   
-  description String?  
+  name        String   @unique
+  group       String
+  specialty   String
+  description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-
-  @@index([specialty])
-  @@index([group])
 }
 
 model WeeklyPlanning {
   id         String   @id @default(cuid())
-  delegateId String   
+  delegateId String
   weekNumber Int
-  zone       String   
-  lundi      String?  
-  mardi      String?  
-  mercredi   String?  
-  jeudi      String?  
-  vendredi   String?  
-  month      String   
+  zone       String
+  lundi      String?
+  mardi      String?
+  mercredi   String?
+  jeudi      String?
+  vendredi   String?
+  month      String
   createdAt  DateTime @default(now())
-
   delegate   Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
-
-  @@index([zone])
-  @@index([month])
 }
 
 model VisitReport {
   id            String     @id @default(cuid())
-  delegateId    String     
-  laboratoryId  String     
-  pharmacyId    String?    
+  delegateId    String
+  laboratoryId  String
+  pharmacyId    String?
   doctorName    String
-  specialty     String?    
-  productsShown String?    
-  notes         String     
-  aiSummary     String?    
+  specialty     String?
+  productsShown String?
+  notes         String
+  aiSummary     String?
   visitDate     DateTime   @default(now())
   createdAt     DateTime   @default(now())
-
   delegate      Delegate   @relation(fields: [delegateId], references: [id])
   laboratory    Laboratory @relation(fields: [laboratoryId], references: [id])
   pharmacy      Pharmacy?  @relation(fields: [pharmacyId], references: [id])
-
-  @@index([delegateId])
-  @@index([visitDate])
 }
