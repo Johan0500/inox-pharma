@@ -3,6 +3,9 @@ import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
+import { execSync } from "child_process";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 import authRoutes      from "./routes/auth";
 import userRoutes      from "./routes/users";
@@ -17,25 +20,28 @@ import planningRoutes  from "./routes/planning";
 import statsRoutes     from "./routes/stats";
 import sectorRoutes    from "./routes/sectors";
 import { setupGPSSocket } from "./socket/gpsSocket";
-import { execSync } from "child_process";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
+dotenv.config();
+
+// ── Initialisation BDD ───────────────────────────────────────
 const initDb = async () => {
-  // 1. Migration d'abord
+  // 1. Migration
   try {
-    execSync("node_modules/.bin/prisma migrate deploy", { stdio: "inherit" });
+    const prismaCmd = process.platform === "win32"
+      ? "node_modules\\.bin\\prisma.cmd migrate deploy"
+      : "node_modules/.bin/prisma migrate deploy";
+    execSync(prismaCmd, { stdio: "inherit" });
     console.log("✅ Migrations appliquées");
   } catch (e) {
-    console.log("⚠️ Migration erreur:", e);
+    console.log("⚠️ Migration ignorée (normal en local)");
   }
 
-  // 2. Seed ensuite — les tables existent maintenant
+  // 2. Seed
   const prisma = new PrismaClient();
   try {
     const count = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
     if (count > 0) {
-      console.log("ℹ️ Super Admin existe deja");
+      console.log("ℹ️ Base déjà initialisée");
       await prisma.$disconnect();
       return;
     }
@@ -85,40 +91,7 @@ const initDb = async () => {
     }
     console.log("✅ 26 produits créés");
 
-    const sa = await prisma.user.findFirst({ where:{ role:"SUPER_ADMIN" } });
-    if (!sa) {
-      const hash = await bcrypt.hash("SuperAdmin@2025!", 12);
-      await prisma.user.create({
-        data: {
-          email:     "superadmin@inoxpharma.com",
-          password:  hash,
-          firstName: "Super",
-          lastName:  "Admin",
-          role:      "SUPER_ADMIN",
-        }
-      });
-      console.log("✅ Super Admin cree : superadmin@inoxpharma.com");
-    }
-
-    console.log("🎉 Base initialisee avec succes !");
-  } catch(e) {
-    console.log("⚠️ Seed erreur:", e);
-  } finally {
-    await prisma.$disconnect();
-  }
-};
-
-// Lancer l'initialisation puis démarrer le serveur
-initDb();
-const resetAdmin = async () => {
-  const prisma = new PrismaClient();
-  try {
     const hash = await bcrypt.hash("Admin@2025!", 12);
-    
-    // Supprimer l'ancien super admin s'il existe
-    await prisma.user.deleteMany({ where: { role: "SUPER_ADMIN" } });
-    
-    // Recréer proprement
     await prisma.user.create({
       data: {
         email:     "admin@inoxpharma.com",
@@ -128,61 +101,66 @@ const resetAdmin = async () => {
         role:      "SUPER_ADMIN",
       }
     });
-    console.log("✅ Admin réinitialisé : admin@inoxpharma.com / Admin@2025!");
+    console.log("✅ Super Admin créé : admin@inoxpharma.com / Admin@2025!");
+    console.log("🎉 Base initialisée avec succès !");
   } catch(e) {
-    console.log("⚠️ Reset erreur:", e);
+    console.log("⚠️ Seed erreur:", e);
   } finally {
     await prisma.$disconnect();
   }
 };
 
-resetAdmin();
+initDb();
 
-dotenv.config();
-
+// ── Serveur Express ──────────────────────────────────────────
 const app = express();
 const httpServer = createServer(app);
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "https://inox-pharma.netlify.app",
+  "https://inox-pharma.vercel.app",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    credentials: true,
-  },
+  cors: { origin: ALLOWED_ORIGINS, credentials: true },
 });
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true,
-}));
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Routes API ───────────────────────────────────────────────
-app.use("/api/auth",        authRoutes);
-app.use("/api/users",       userRoutes);
-app.use("/api/delegates",   delegateRoutes);
-app.use("/api/reports",     reportRoutes);
-app.use("/api/gps",         gpsRoutes);
-app.use("/api/grossistes",  grossisteRoutes);
-app.use("/api/laboratories",labRoutes);
-app.use("/api/pharmacies",  pharmacyRoutes);
-app.use("/api/products",    productRoutes);
-app.use("/api/planning",    planningRoutes);
-app.use("/api/stats",       statsRoutes);
-app.use("/api/sectors",     sectorRoutes);
+app.use("/api/auth",         authRoutes);
+app.use("/api/users",        userRoutes);
+app.use("/api/delegates",    delegateRoutes);
+app.use("/api/reports",      reportRoutes);
+app.use("/api/gps",          gpsRoutes);
+app.use("/api/grossistes",   grossisteRoutes);
+app.use("/api/laboratories", labRoutes);
+app.use("/api/pharmacies",   pharmacyRoutes);
+app.use("/api/products",     productRoutes);
+app.use("/api/planning",     planningRoutes);
+app.use("/api/stats",        statsRoutes);
+app.use("/api/sectors",      sectorRoutes);
 
 // ── Socket GPS ───────────────────────────────────────────────
 setupGPSSocket(io);
 
 // ── Health check ─────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "INOX PHARMA API running", db: "MySQL (XAMPP)" });
+  res.json({
+    status: "ok",
+    message: "INOX PHARMA API running",
+    db: process.env.DATABASE_URL?.includes("postgresql") ? "PostgreSQL (Render)" : "MySQL (XAMPP)",
+  });
 });
 
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
-  console.log(`   Base de données  → MySQL (XAMPP) / inoxpharma`);
+  console.log(`   Base de données  → ${process.env.DATABASE_URL?.includes("postgresql") ? "PostgreSQL (Render)" : "MySQL (XAMPP)"}`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
 });
 
