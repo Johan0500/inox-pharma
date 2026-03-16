@@ -146,8 +146,8 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
+const PORT = process.env.PORT || 10000;
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
