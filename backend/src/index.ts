@@ -151,6 +151,12 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
+  
+  // Lancer les migrations APRES que le serveur soit démarré
+  initDb().then(() => {
+    console.log("✅ Base de données prête");
+  }).catch((e) => {
+    console.log("⚠️ Erreur DB:", e);
+  });
 });
-
 export { io };
