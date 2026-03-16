@@ -147,16 +147,21 @@ app.get("/api/health", (req, res) => {
 });
 
 const PORT = parseInt(process.env.PORT || "10000");
+
+// Démarrer le serveur IMMÉDIATEMENT
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
-  
-  // Lancer les migrations APRES que le serveur soit démarré
+});
+
+// Migrations et seed en arrière-plan (sans bloquer le serveur)
+setTimeout(() => {
   initDb().then(() => {
     console.log("✅ Base de données prête");
   }).catch((e) => {
     console.log("⚠️ Erreur DB:", e);
   });
-});
+}, 2000);
+
 export { io };
