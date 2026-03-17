@@ -3,7 +3,6 @@ import cors             from "cors";
 import { createServer } from "http";
 import { Server }       from "socket.io";
 import dotenv           from "dotenv";
-import { execSync }     from "child_process";
 import { PrismaClient } from "@prisma/client";
 import bcrypt           from "bcryptjs";
 
@@ -88,18 +87,6 @@ httpServer.listen(PORT, "0.0.0.0", () => {
 
 // ── Init DB ──────────────────────────────────────────────────
 async function initDb() {
-  // Migration
-  try {
-    const cmd = process.platform === "win32"
-      ? "node_modules\\.bin\\prisma.cmd migrate deploy"
-      : "node_modules/.bin/prisma migrate deploy";
-    execSync(cmd, { stdio: "inherit" });
-    console.log("✅ Migrations appliquées");
-  } catch (e) {
-    console.log("⚠️ Migration ignorée");
-  }
-
-  // Seed
   const prisma = new PrismaClient();
   try {
     const count = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
