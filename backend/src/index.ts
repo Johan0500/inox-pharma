@@ -27,17 +27,22 @@ dotenv.config();
 const app        = express();
 const httpServer = createServer(app);
 
-// ── CORS ─────────────────────────────────────────────────────
-app.use(cors({
-  origin: (origin, callback) => callback(null, true),
-  credentials: true,
-}));
+// ── CORS explicite ───────────────────────────────────────────
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin",  "*");
+  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,PATCH,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+  if (req.method === "OPTIONS") {
+    return res.status(200).json({});
+  }
+  next();
+});
 
+app.use(cors({ origin: "*", credentials: false }));
+
+// ── Socket.io ────────────────────────────────────────────────
 const io = new Server(httpServer, {
-  cors: {
-    origin: (origin, callback) => callback(null, true),
-    credentials: true,
-  },
+  cors: { origin: "*", credentials: false },
 });
 
 app.use(express.json({ limit: "10mb" }));
@@ -77,7 +82,7 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
 
-  // Init DB en arrière-plan après démarrage
+  // Init DB en arrière-plan
   initDb();
 });
 
