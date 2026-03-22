@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL")
 }
 
 enum Role {
@@ -22,20 +21,31 @@ enum DelegateStatus {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  password     String
-  firstName    String
-  lastName     String
-  role         Role      @default(DELEGATE)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  createdById  String?
-  createdBy    User?     @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers User[]    @relation("UserCreator")
-  adminLabs    AdminLaboratory[]
-  delegate     Delegate?
+  id             String           @id @default(cuid())
+  email          String           @unique
+  password       String
+  firstName      String
+  lastName       String
+  role           Role             @default(DELEGATE)
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  createdById    String?
+  createdBy      User?            @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers   User[]           @relation("UserCreator")
+  adminLabs      AdminLaboratory[]
+  delegate       Delegate?
+  activeSessions ActiveSession[]
+}
+
+model ActiveSession {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  token      String
+  deviceInfo String?
+  lastActive DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Laboratory {
