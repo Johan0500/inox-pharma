@@ -6,20 +6,21 @@ import dotenv           from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import bcrypt           from "bcryptjs";
 
-import authRoutes       from "./routes/auth";
-import userRoutes       from "./routes/users";
-import delegateRoutes   from "./routes/delegates";
-import reportRoutes     from "./routes/reports";
-import gpsRoutes        from "./routes/gps";
-import grossisteRoutes  from "./routes/grossistes";
-import labRoutes        from "./routes/laboratories";
-import pharmacyRoutes   from "./routes/pharmacies";
-import productRoutes    from "./routes/products";
-import planningRoutes   from "./routes/planning";
-import statsRoutes      from "./routes/stats";
-import sectorRoutes     from "./routes/sectors";
-import { setupGPSSocket } from "./socket/gpsSocket";
+import authRoutes        from "./routes/auth";
+import userRoutes        from "./routes/users";
+import delegateRoutes    from "./routes/delegates";
+import reportRoutes      from "./routes/reports";
+import gpsRoutes         from "./routes/gps";
+import grossisteRoutes   from "./routes/grossistes";
+import labRoutes         from "./routes/laboratories";
+import pharmacyRoutes    from "./routes/pharmacies";
+import productRoutes     from "./routes/products";
+import planningRoutes    from "./routes/planning";
+import statsRoutes       from "./routes/stats";
+import sectorRoutes      from "./routes/sectors";
 import salesReportRoutes from "./routes/salesReports";
+import messageRoutes     from "./routes/messages";
+import { setupGPSSocket } from "./socket/gpsSocket";
 
 dotenv.config();
 
@@ -27,21 +28,18 @@ dotenv.config();
 const app        = express();
 const httpServer = createServer(app);
 
-// ── CORS explicite ───────────────────────────────────────────
+// ── CORS ─────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin",  "*");
   res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,PATCH,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
-  if (req.method === "OPTIONS") {
-    return res.status(200).json({});
-  }
+  if (req.method === "OPTIONS") return res.status(200).json({});
   next();
 });
-
 app.use(cors({ origin: "*", credentials: false }));
 
 // ── Socket.io ────────────────────────────────────────────────
-const io = new Server(httpServer, {
+export const io = new Server(httpServer, {
   cors: { origin: "*", credentials: false },
 });
 
@@ -62,8 +60,37 @@ app.use("/api/planning",      planningRoutes);
 app.use("/api/stats",         statsRoutes);
 app.use("/api/sectors",       sectorRoutes);
 app.use("/api/sales-reports", salesReportRoutes);
-// ── Socket GPS ───────────────────────────────────────────────
+app.use("/api/messages",      messageRoutes);
+
+// ── Socket GPS + Messages ────────────────────────────────────
 setupGPSSocket(io);
+
+io.use(async (socket, next) => {
+  try {
+    const jwt     = await import("jsonwebtoken");
+    const token   = socket.handshake.auth.token;
+    if (!token) return next(new Error("Token manquant"));
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET!) as any;
+    (socket as any).userId     = decoded.id;
+    (socket as any).role       = decoded.role;
+    (socket as any).delegateId = decoded.delegateId;
+    next();
+  } catch {
+    next(new Error("Token invalide"));
+  }
+});
+
+io.on("connection", (socket) => {
+  const userId = (socket as any).userId;
+  const role   = (socket as any).role;
+
+  if (userId) socket.join(`user_${userId}`);
+  if (role === "SUPER_ADMIN" || role === "ADMIN") socket.join("admins");
+
+  socket.on("disconnect", () => {
+    console.log(`🔌 Déconnecté: ${userId}`);
+  });
+});
 
 // ── Health check ─────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
@@ -81,8 +108,6 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
-
-  // Init DB en arrière-plan
   initDb();
 });
 
@@ -91,20 +116,12 @@ async function initDb() {
   const prisma = new PrismaClient();
   try {
     const count = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
-    if (count > 0) {
-      console.log("ℹ️ Base déjà initialisée");
-      return;
-    }
+    if (count > 0) { console.log("ℹ️ Base déjà initialisée"); return; }
 
-    for (const name of ["lic-pharma","medisure","sigma","ephaco","stallion"]) {
+    for (const name of ["lic-pharma","medisure","sigma","ephaco","stallion"])
       await prisma.laboratory.upsert({ where:{name}, update:{}, create:{name} });
-    }
-    console.log("✅ 5 laboratoires créés");
-
-    for (const name of ["tedis","copharmed","laborex","dpci"]) {
+    for (const name of ["tedis","copharmed","laborex","dpci"])
       await prisma.grossiste.upsert({ where:{name}, update:{}, create:{name} });
-    }
-    console.log("✅ 4 grossistes créés");
 
     const products = [
       { name:"CROCIP-TZ",   group:"GROUPE 1", specialty:"CHIRURGIE" },
@@ -134,10 +151,8 @@ async function initDb() {
       { name:"ESOMECRO",    group:"GROUPE 4", specialty:"RHUMATOLOGIE NEURO TRAUMATO" },
       { name:"CROGENTA",    group:"GROUPE 4", specialty:"OPHTALMOLOGIE" },
     ];
-    for (const p of products) {
+    for (const p of products)
       await prisma.product.upsert({ where:{name:p.name}, update:{}, create:p });
-    }
-    console.log("✅ 26 produits créés");
 
     const hash = await bcrypt.hash("Admin@2025!", 12);
     await prisma.user.create({
@@ -149,13 +164,10 @@ async function initDb() {
         role:      "SUPER_ADMIN",
       }
     });
-    console.log("✅ Super Admin créé : admin@inoxpharma.com / Admin@2025!");
-    console.log("🎉 Base initialisée avec succès !");
+    console.log("✅ Base initialisée : admin@inoxpharma.com / Admin@2025!");
   } catch(e) {
     console.log("⚠️ Seed erreur:", e);
   } finally {
     await prisma.$disconnect();
   }
 }
-
-export { io };

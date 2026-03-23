@@ -10,8 +10,8 @@ router.get("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: Au
   try {
     const users = await prisma.user.findMany({
       include: {
-        adminLabs: { include: { laboratory: true } },
-        delegate:  { include: { laboratory: true, sector: true } },
+        adminLabs:      { include: { laboratory: true } },
+        delegate:       { include: { laboratory: true, sector: true } },
         activeSessions: { select: { lastActive: true, deviceInfo: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -29,26 +29,17 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
       return res.status(400).json({ error: "Champs obligatoires manquants" });
 
     const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (existing)
-      return res.status(400).json({ error: "Email déjà utilisé" });
+    if (existing) return res.status(400).json({ error: "Email déjà utilisé" });
 
     const labsToUse = labs || [];
-    if (labsToUse.length > 0) {
-      const labRecords = await Promise.all(
-        labsToUse.map((name: string) => prisma.laboratory.findUnique({ where: { name } }))
-      );
-      if (labRecords.some((l) => !l))
-        return res.status(400).json({ error: `Laboratoire "${labsToUse[0]}" non trouvé` });
-    }
-
     const hash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: {
-        email:      email.toLowerCase().trim(),
-        password:   hash,
-        firstName:  firstName.trim(),
-        lastName:   lastName.trim(),
-        role:       role || "DELEGATE",
+        email:       email.toLowerCase().trim(),
+        password:    hash,
+        firstName:   firstName.trim(),
+        lastName:    lastName.trim(),
+        role:        role || "DELEGATE",
         createdById: req.user!.id,
       },
     });
@@ -59,21 +50,14 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
         : null;
       if (lab) {
         await prisma.delegate.create({
-          data: {
-            userId:      user.id,
-            laboratoryId: lab.id,
-            zone:        zone || "Non défini",
-            phone:       phone || null,
-          },
+          data: { userId: user.id, laboratoryId: lab.id, zone: zone || "Non défini", phone: phone || null },
         });
       }
     } else if (role === "ADMIN" && labsToUse.length > 0) {
       for (const labName of labsToUse) {
         const lab = await prisma.laboratory.findUnique({ where: { name: labName } });
         if (lab) {
-          await prisma.adminLaboratory.create({
-            data: { userId: user.id, laboratoryId: lab.id },
-          });
+          await prisma.adminLaboratory.create({ data: { userId: user.id, laboratoryId: lab.id } });
         }
       }
     }
@@ -85,9 +69,33 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
   }
 });
 
+// Changer son propre mot de passe
+router.patch("/me/password", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword)
+      return res.status(400).json({ error: "Ancien et nouveau mot de passe requis" });
+    if (newPassword.length < 6)
+      return res.status(400).json({ error: "Le nouveau mot de passe doit avoir au moins 6 caractères" });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) return res.status(401).json({ error: "Mot de passe actuel incorrect" });
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: req.user!.id }, data: { password: hash } });
+    res.json({ message: "Mot de passe changé avec succès" });
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// Activer/désactiver un compte
 router.patch("/:id/toggle", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const user    = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
     const updated = await prisma.user.update({
       where: { id: req.params.id },
@@ -112,9 +120,7 @@ router.delete("/:id/session", authenticate, requireRole("SUPER_ADMIN","ADMIN"), 
 // Déconnecter TOUS les utilisateurs
 router.delete("/sessions/all", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
   try {
-    await prisma.activeSession.deleteMany({
-      where: { userId: { not: req.user!.id } },
-    });
+    await prisma.activeSession.deleteMany({ where: { userId: { not: req.user!.id } } });
     res.json({ message: "Tous les utilisateurs déconnectés" });
   } catch (err) {
     res.status(500).json({ error: "Erreur serveur" });
