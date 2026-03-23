@@ -62,46 +62,31 @@ export default function GPSMapTab() {
   });
 
   useEffect(() => {
-    if (!initialPositions) return;
-    const map: Record<string, GPSPosition> = {};
-    initialPositions.forEach((p: any) => {
-      if (p.lat && p.lng) {
-        map[p.id] = {
-          delegateId: p.id,
-          name:       p.name,
-          zone:       p.zone,
-          status:     p.status,
-          latitude:   p.lat,
-          longitude:  p.lng,
-          timestamp:  p.lastSeen,
-        };
-      }
-    });
-    setPositions(map);
-  }, [initialPositions]);
+  if (!token) return;
+  const socket = io(
+    import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+    { auth: { token }, reconnection: true }
+  );
 
-  // Socket.io — mises à jour temps réel
-  useEffect(() => {
-    if (!token) return;
-    const socket = io(
-      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
-      { auth: { token } }
+  socket.on("connect", () => {
+    console.log("✅ Admin connecté au GPS");
+  });
+
+  socket.on("delegate_location_update", (data: GPSPosition) => {
+    console.log("📍 Position reçue:", data);
+    setPositions((prev) => ({ ...prev, [data.delegateId]: data }));
+  });
+
+  socket.on("delegate_offline", ({ delegateId }: { delegateId: string }) => {
+    setPositions((prev) =>
+      prev[delegateId]
+        ? { ...prev, [delegateId]: { ...prev[delegateId], status: "INACTIF" } }
+        : prev
     );
+  });
 
-    socket.on("delegate_location_update", (data: GPSPosition) => {
-      setPositions((prev) => ({ ...prev, [data.delegateId]: data }));
-    });
-
-    socket.on("delegate_offline", ({ delegateId }: { delegateId: string }) => {
-      setPositions((prev) =>
-        prev[delegateId]
-          ? { ...prev, [delegateId]: { ...prev[delegateId], status: "INACTIF" } }
-          : prev
-      );
-    });
-
-    return () => { socket.disconnect(); };
-  }, [token]);
+  return () => { socket.disconnect(); };
+}, [token]);
 
   const allPositions = Object.values(positions);
 

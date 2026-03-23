@@ -6,38 +6,55 @@ import { MapPin, Navigation, Coffee, Play, Square, Wifi, WifiOff } from "lucide-
 type Status = "EN_VISITE" | "EN_DEPLACEMENT" | "EN_PAUSE";
 
 const STATUSES: { key: Status; label: string; icon: any; color: string; bg: string }[] = [
-  { key: "EN_VISITE",      label: "En visite",      icon: MapPin,      color: "bg-green-500", bg: "bg-green-50 border-green-200 text-green-700" },
-  { key: "EN_DEPLACEMENT", label: "En déplacement", icon: Navigation,  color: "bg-blue-500",  bg: "bg-blue-50 border-blue-200 text-blue-700"   },
-  { key: "EN_PAUSE",       label: "En pause",       icon: Coffee,      color: "bg-yellow-500",bg: "bg-yellow-50 border-yellow-200 text-yellow-700" },
+  { key: "EN_VISITE",      label: "En visite",      icon: MapPin,      color: "bg-green-500",  bg: "bg-green-50 border-green-200 text-green-700"   },
+  { key: "EN_DEPLACEMENT", label: "En déplacement", icon: Navigation,  color: "bg-blue-500",   bg: "bg-blue-50 border-blue-200 text-blue-700"      },
+  { key: "EN_PAUSE",       label: "En pause",       icon: Coffee,      color: "bg-yellow-500", bg: "bg-yellow-50 border-yellow-200 text-yellow-700" },
 ];
 
 export default function GeoTracker() {
-  const { token } = useAuth();
-  const socketRef = useRef<Socket | null>(null);
-  const watchRef  = useRef<number | null>(null);
+  const { token }                   = useAuth();
+  const socketRef                   = useRef<Socket | null>(null);
+  const watchRef                    = useRef<number | null>(null);
+  const pingRef                     = useRef<NodeJS.Timeout | null>(null);
+  const reconnectRef                = useRef<NodeJS.Timeout | null>(null);
 
-  const [tracking,   setTracking]   = useState(false);
-  const [status,     setStatus]     = useState<Status>("EN_DEPLACEMENT");
-  const [lastPos,    setLastPos]    = useState<{ lat: number; lng: number } | null>(null);
-  const [error,      setError]      = useState("");
-  const [connected,  setConnected]  = useState(false);
-  const [sendCount,  setSendCount]  = useState(0);
-  const [lastSent,   setLastSent]   = useState<Date | null>(null);
+  const [tracking,  setTracking]    = useState(false);
+  const [status,    setStatus]      = useState<Status>("EN_DEPLACEMENT");
+  const [lastPos,   setLastPos]     = useState<{ lat: number; lng: number } | null>(null);
+  const [error,     setError]       = useState("");
+  const [connected, setConnected]   = useState(false);
+  const [sendCount, setSendCount]   = useState(0);
+  const [lastSent,  setLastSent]    = useState<Date | null>(null);
 
-  const sendPosition = useCallback(
-    (lat: number, lng: number, st: Status) => {
-      if (!socketRef.current?.connected) return;
-      socketRef.current.emit("send_location", {
-        latitude:  lat,
-        longitude: lng,
-        status:    st,
-      });
-      setLastPos({ lat, lng });
-      setSendCount((c) => c + 1);
-      setLastSent(new Date());
-    },
-    []
-  );
+  const connectSocket = useCallback(() => {
+    if (socketRef.current?.connected) return;
+
+    const socket = io(
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+      { auth: { token }, reconnection: true, reconnectionDelay: 2000 }
+    );
+    socketRef.current = socket;
+    socket.on("connect",    () => setConnected(true));
+    socket.on("disconnect", () => setConnected(false));
+    return socket;
+  }, [token]);
+
+  const sendPosition = useCallback((lat: number, lng: number, st: Status) => {
+    // Reconnecter si nécessaire
+    if (!socketRef.current?.connected) {
+      connectSocket();
+      setTimeout(() => {
+        if (socketRef.current?.connected) {
+          socketRef.current.emit("send_location", { latitude: lat, longitude: lng, status: st });
+        }
+      }, 2000);
+      return;
+    }
+    socketRef.current.emit("send_location", { latitude: lat, longitude: lng, status: st });
+    setLastPos({ lat, lng });
+    setSendCount((c) => c + 1);
+    setLastSent(new Date());
+  }, [connectSocket]);
 
   const startTracking = () => {
     if (!navigator.geolocation) {
@@ -46,25 +63,31 @@ export default function GeoTracker() {
     }
     setError("");
 
-    // Connexion Socket.io
-    const socket = io(
-      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
-      { auth: { token }, reconnection: true }
-    );
-    socketRef.current = socket;
-    socket.on("connect",    () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
+    connectSocket();
 
-    // Démarrer watchPosition
+    // watchPosition — fonctionne en avant-plan
     watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        sendPosition(pos.coords.latitude, pos.coords.longitude, status);
-      },
-      (err) => {
-        setError(`Erreur GPS : ${err.message}`);
-      },
+      (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
+      (err) => setError(`Erreur GPS : ${err.message}`),
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
     );
+
+    // Ping toutes les 30 secondes — fonctionne en arrière-plan
+    pingRef.current = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 30000, timeout: 10000 }
+      );
+    }, 30000);
+
+    // Vérifier la connexion toutes les 15 secondes
+    reconnectRef.current = setInterval(() => {
+      if (!socketRef.current?.connected) {
+        console.log("🔄 Reconnexion socket...");
+        connectSocket();
+      }
+    }, 15000);
 
     setTracking(true);
   };
@@ -73,6 +96,14 @@ export default function GeoTracker() {
     if (watchRef.current !== null) {
       navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
+    }
+    if (pingRef.current) {
+      clearInterval(pingRef.current);
+      pingRef.current = null;
+    }
+    if (reconnectRef.current) {
+      clearInterval(reconnectRef.current);
+      reconnectRef.current = null;
     }
     socketRef.current?.disconnect();
     socketRef.current = null;
@@ -87,6 +118,30 @@ export default function GeoTracker() {
       sendPosition(lastPos.lat, lastPos.lng, newStatus);
     }
   };
+
+  // Gérer le passage en arrière-plan
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && tracking && lastPos) {
+        // App en arrière-plan — forcer un envoi immédiat
+        sendPosition(lastPos.lat, lastPos.lng, status);
+      } else if (!document.hidden && tracking) {
+        // App revenue en avant-plan — reconnecter si nécessaire
+        if (!socketRef.current?.connected) {
+          connectSocket();
+        }
+        // Forcer une nouvelle position
+        navigator.geolocation.getCurrentPosition(
+          (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        );
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [tracking, lastPos, status, sendPosition, connectSocket]);
 
   // Nettoyage au démontage
   useEffect(() => () => { stopTracking(); }, []);
@@ -180,9 +235,9 @@ export default function GeoTracker() {
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-sm text-blue-700">
           <p className="font-medium mb-1">ℹ️ Comment ça fonctionne</p>
           <p className="text-blue-600 text-xs leading-relaxed">
-            Sélectionnez votre statut, puis appuyez sur "Démarrer le suivi GPS".
-            Votre position sera transmise en temps réel à l'administrateur sur la carte.
-            Maintenez l'application ouverte pour le suivi continu.
+            Sélectionnez votre statut puis appuyez sur "Démarrer le suivi GPS".
+            Votre position sera transmise toutes les 30 secondes même si l'app
+            est en arrière-plan. Vous pouvez utiliser votre téléphone normalement.
           </p>
         </div>
       )}
