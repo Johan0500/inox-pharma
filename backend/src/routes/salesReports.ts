@@ -29,7 +29,7 @@ const PRODUCTS = [
   { num: 21, name: "VICLINE 200MG CPR PELL SEC B/10",         pght: 795  },
 ];
 
-// Créer ou récupérer un rapport
+// ── Rapport courant ──────────────────────────────────────────
 router.get("/current", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
   try {
     const now   = new Date();
@@ -56,9 +56,9 @@ router.get("/current", authenticate, requireRole("ADMIN"), async (req: AuthReque
           year,
           lines: {
             create: PRODUCTS.map((p) => ({
-              itemNumber: p.num,
+              itemNumber:  p.num,
               designation: p.name,
-              pght: p.pght,
+              pght:        p.pght,
             })),
           },
         },
@@ -73,7 +73,32 @@ router.get("/current", authenticate, requireRole("ADMIN"), async (req: AuthReque
   }
 });
 
-// Mettre à jour une ligne
+// ── Rapport d'hier (J-1) ────────────────────────────────────
+router.get("/yesterday", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const month = `${yesterday.getMonth() + 1}`.padStart(2, "0");
+    const year  = yesterday.getFullYear();
+
+    const labId = await prisma.adminLaboratory.findFirst({
+      where:  { userId: req.user!.id },
+      select: { laboratoryId: true },
+    });
+    if (!labId) return res.status(404).json({ error: "Laboratoire non trouvé" });
+
+    const report = await prisma.salesReport.findFirst({
+      where:   { adminId: req.user!.id, month, year },
+      include: { lines: true },
+    });
+
+    res.json(report || null);
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Mettre à jour une ligne (stock, vente, pght) ─────────────
 router.patch("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) => {
   try {
     const line = await prisma.salesReportLine.update({
@@ -86,12 +111,51 @@ router.patch("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) =
   }
 });
 
-// Soumettre le rapport au Super Admin
+// ── Ajouter un produit au rapport ────────────────────────────
+router.post("/:id/line", authenticate, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const { designation, pght, itemNumber } = req.body;
+    if (!designation || !pght)
+      return res.status(400).json({ error: "Désignation et PGHT requis" });
+
+    // Trouver le dernier numéro de ligne
+    const lastLine = await prisma.salesReportLine.findFirst({
+      where:   { reportId: req.params.id },
+      orderBy: { itemNumber: "desc" },
+    });
+
+    const newItemNumber = itemNumber || (lastLine ? lastLine.itemNumber + 1 : 1);
+
+    const line = await prisma.salesReportLine.create({
+      data: {
+        reportId:    req.params.id,
+        itemNumber:  newItemNumber,
+        designation: designation.trim(),
+        pght:        parseFloat(pght),
+      },
+    });
+    res.status(201).json(line);
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Supprimer une ligne ──────────────────────────────────────
+router.delete("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) => {
+  try {
+    await prisma.salesReportLine.delete({ where: { id: req.params.id } });
+    res.json({ message: "Ligne supprimée" });
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Soumettre le rapport (peut être re-soumis après modif) ───
 router.post("/:id/submit", authenticate, requireRole("ADMIN"), async (req, res) => {
   try {
     const report = await prisma.salesReport.update({
-      where: { id: req.params.id },
-      data:  { status: "SUBMITTED", submittedAt: new Date() },
+      where:   { id: req.params.id },
+      data:    { status: "SUBMITTED", submittedAt: new Date() },
       include: { laboratory: true },
     });
     res.json({ message: "Rapport soumis avec succès", report });
@@ -100,11 +164,24 @@ router.post("/:id/submit", authenticate, requireRole("ADMIN"), async (req, res) 
   }
 });
 
-// Super Admin — voir tous les rapports soumis
+// ── Remettre en brouillon pour modifications ─────────────────
+router.post("/:id/reopen", authenticate, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const report = await prisma.salesReport.update({
+      where: { id: req.params.id },
+      data:  { status: "DRAFT", submittedAt: null },
+    });
+    res.json({ message: "Rapport réouvert", report });
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Super Admin — tous les rapports soumis ───────────────────
 router.get("/all", authenticate, requireRole("SUPER_ADMIN"), async (req, res) => {
   try {
     const { month, year } = req.query as any;
-    const where: any = { status: "SUBMITTED" };
+    const where: any      = { status: "SUBMITTED" };
     if (month) where.month = month;
     if (year)  where.year  = parseInt(year);
 
@@ -123,11 +200,11 @@ router.get("/all", authenticate, requireRole("SUPER_ADMIN"), async (req, res) =>
   }
 });
 
-// Stats par labo pour Super Admin
+// ── Super Admin — stats par labo ─────────────────────────────
 router.get("/stats", authenticate, requireRole("SUPER_ADMIN"), async (req, res) => {
   try {
     const { month, year } = req.query as any;
-    const where: any = { status: "SUBMITTED" };
+    const where: any      = { status: "SUBMITTED" };
     if (month) where.month = month;
     if (year)  where.year  = parseInt(year);
 
@@ -140,29 +217,43 @@ router.get("/stats", authenticate, requireRole("SUPER_ADMIN"), async (req, res) 
       },
     });
 
+    const GROSSISTES = ["copharmed", "laborex", "tedis", "dpci"] as const;
+    const JOURS      = 18;
+
     const stats = reports.map((r) => {
-      const totalVentes = r.lines.reduce((acc, l) =>
-        acc + l.copharmedVente + l.laborexVente + l.tedisVente + l.dpciVente, 0
-      );
-      const totalStocks = r.lines.reduce((acc, l) =>
-        acc + l.copharmedStock + l.laborexStock + l.tedisStock + l.dpciStock, 0
-      );
-      const caTotal = r.lines.reduce((acc, l) => {
-        const ventes = l.copharmedVente + l.laborexVente + l.tedisVente + l.dpciVente;
-        return acc + (ventes * l.pght);
-      }, 0);
+      const grossisteStats = GROSSISTES.map((g) => {
+        const valStock  = r.lines.reduce((a, l) =>
+          a + (l[`${g}Stock` as keyof typeof l] as number || 0) * l.pght, 0);
+        const caRealise = r.lines.reduce((a, l) =>
+          a + (l[`${g}Vente` as keyof typeof l] as number || 0) * l.pght, 0);
+        const moyJour   = JOURS > 0 ? Math.round(caRealise / JOURS) : 0;
+        return { grossiste: g, valStock, caRealise, moyJour };
+      });
+
+      const totalValStock = grossisteStats.reduce((a, s) => a + s.valStock,  0);
+      const totalCA       = grossisteStats.reduce((a, s) => a + s.caRealise, 0);
+      const totalMoyJour  = grossisteStats.reduce((a, s) => a + s.moyJour,   0);
+      const totalVentes   = r.lines.reduce((a, l) =>
+        a + GROSSISTES.reduce((b, g) =>
+          b + (l[`${g}Vente` as keyof typeof l] as number || 0), 0), 0);
+      const totalStocks   = r.lines.reduce((a, l) =>
+        a + GROSSISTES.reduce((b, g) =>
+          b + (l[`${g}Stock` as keyof typeof l] as number || 0), 0), 0);
 
       return {
-        id:          r.id,
-        laboratory:  r.laboratory.name,
-        admin:       `${r.admin.firstName} ${r.admin.lastName}`,
-        month:       r.month,
-        year:        r.year,
-        submittedAt: r.submittedAt,
+        id:            r.id,
+        laboratory:    r.laboratory.name,
+        admin:         `${r.admin.firstName} ${r.admin.lastName}`,
+        month:         r.month,
+        year:          r.year,
+        submittedAt:   r.submittedAt,
+        grossisteStats,
+        totalValStock,
+        totalCA,
+        totalMoyJour,
         totalVentes,
         totalStocks,
-        caTotal,
-        lines:       r.lines,
+        lines:         r.lines,
       };
     });
 
