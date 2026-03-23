@@ -3,67 +3,68 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   LayoutDashboard, MapPin, Users, Building2,
   Calendar, FileText, Package, BarChart3,
-  Settings, LogOut, ChevronLeft, ChevronRight, 
-  TrendingUp,
+  Settings, LogOut, ChevronLeft, ChevronRight,
+  TrendingUp, DollarSign,
 } from "lucide-react";
 
-import OverviewTab    from "./tabs/OverviewTab";
-import GPSMapTab      from "./tabs/GPSMapTab";
-import DelegatesTab   from "./tabs/DelegatesTab";
-import PharmaciesTab  from "./tabs/PharmaciesTab";
-import PlanningTab    from "./tabs/PlanningTab";
-import ReportsTab     from "./tabs/ReportsTab";
-import ProductsTab    from "./tabs/ProductsTab";
-import StatsTab       from "./tabs/StatsTab";
-import UsersTab       from "./tabs/UsersTab";
+import OverviewTab      from "./tabs/OverviewTab";
+import GPSMapTab        from "./tabs/GPSMapTab";
+import DelegatesTab     from "./tabs/DelegatesTab";
+import PharmaciesTab    from "./tabs/PharmaciesTab";
+import PlanningTab      from "./tabs/PlanningTab";
+import ReportsTab       from "./tabs/ReportsTab";
+import ProductsTab      from "./tabs/ProductsTab";
+import StatsTab         from "./tabs/StatsTab";
+import UsersTab         from "./tabs/UsersTab";
 import ChiffresTab      from "./tabs/ChiffresTab";
 import StatsChiffresTab from "./tabs/StatsChiffresTab";
-const TABS = [
-  { id: "overview",   label: "Accueil",      icon: LayoutDashboard },
-  { id: "gps",        label: "GPS Live",     icon: MapPin },
-  { id: "delegates",  label: "Délégués",     icon: Users },
-  { id: "pharmacies", label: "Pharmacies",   icon: Building2 },
-  { id: "planning",   label: "Planning",     icon: Calendar },
-  { id: "reports",    label: "Rapports",     icon: FileText },
-  { id: "products",   label: "Produits",     icon: Package },
-  { id: "stats",      label: "Statistiques", icon: BarChart3 },
-  { id: "users",      label: "Utilisateurs", icon: Settings },
-  { id: "chiffres", label: "Chiffres", icon: BarChart3 },
-  { id: "stats-chiffres", label: "Stats Chiffres", icon: TrendingUp },
-];
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
-  const [activeTab,  setActiveTab]  = useState("overview");
-  const [collapsed,  setCollapsed]  = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [collapsed, setCollapsed] = useState(false);
+
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+
+  const TABS = [
+    { id: "overview",       label: "Accueil",         icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "gps",            label: "GPS Live",        icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "delegates",      label: "Délégués",        icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "pharmacies",     label: "Pharmacies",      icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "planning",       label: "Planning",        icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "reports",        label: "Rapports",        icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "products",       label: "Produits",        icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "chiffres",       label: "Chiffres",        icon: DollarSign,      roles: ["ADMIN"] },
+    { id: "stats-chiffres", label: "Stats Chiffres",  icon: TrendingUp,      roles: ["SUPER_ADMIN"] },
+    { id: "stats",          label: "Statistiques",    icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "users",          label: "Utilisateurs",    icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
+  ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
     switch (activeTab) {
-      case "overview":   return <OverviewTab />;
-      case "gps":        return <GPSMapTab />;
-      case "delegates":  return <DelegatesTab />;
-      case "pharmacies": return <PharmaciesTab />;
-      case "planning":   return <PlanningTab />;
-      case "reports":    return <ReportsTab />;
-      case "products":   return <ProductsTab />;
-      case "stats":      return <StatsTab />;
-      case "users":      return <UsersTab />;
-      default:           return <OverviewTab />;
+      case "overview":       return <OverviewTab />;
+      case "gps":            return <GPSMapTab />;
+      case "delegates":      return <DelegatesTab />;
+      case "pharmacies":     return <PharmaciesTab />;
+      case "planning":       return <PlanningTab />;
+      case "reports":        return <ReportsTab />;
+      case "products":       return <ProductsTab />;
       case "chiffres":       return <ChiffresTab />;
       case "stats-chiffres": return <StatsChiffresTab />;
+      case "stats":          return <StatsTab />;
+      case "users":          return <UsersTab />;
+      default:               return <OverviewTab />;
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-      {/* ── Sidebar ─────────────────────────────────────── */}
-      <aside
-        className={`${collapsed ? "w-16" : "w-64"} transition-all duration-300
-                    bg-gradient-to-b from-slate-900 to-slate-800
-                    flex flex-col shadow-xl flex-shrink-0 relative`}
-      >
-        {/* Toggle collapse */}
+      {/* Sidebar */}
+      <aside className={`${collapsed ? "w-16" : "w-64"} transition-all duration-300
+                        bg-gradient-to-b from-slate-900 to-slate-800
+                        flex flex-col shadow-xl flex-shrink-0 relative`}>
+
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="absolute -right-3 top-6 bg-blue-600 text-white rounded-full p-0.5
@@ -85,15 +86,6 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-          {!collapsed && user?.labs && user.labs.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {user.labs.map((lab) => (
-                <span key={lab} className="bg-blue-900/60 text-blue-200 text-xs px-2 py-0.5 rounded-full">
-                  {lab}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Navigation */}
@@ -139,7 +131,7 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* ── Contenu principal ────────────────────────── */}
+      {/* Contenu principal */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-7xl mx-auto">
           {renderTab()}
