@@ -3,7 +3,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   LayoutDashboard, MapPin, Users, Building2,
   Calendar, FileText, Package, BarChart3,
-  Settings, LogOut, ChevronLeft, ChevronRight,
+  Settings, LogOut, ChevronLeft, ChevronRight, 
+  TrendingUp,
 } from "lucide-react";
 
 import OverviewTab    from "./tabs/OverviewTab";
@@ -15,7 +16,8 @@ import ReportsTab     from "./tabs/ReportsTab";
 import ProductsTab    from "./tabs/ProductsTab";
 import StatsTab       from "./tabs/StatsTab";
 import UsersTab       from "./tabs/UsersTab";
-
+import ChiffresTab      from "./tabs/ChiffresTab";
+import StatsChiffresTab from "./tabs/StatsChiffresTab";
 const TABS = [
   { id: "overview",   label: "Accueil",      icon: LayoutDashboard },
   { id: "gps",        label: "GPS Live",     icon: MapPin },
@@ -26,6 +28,8 @@ const TABS = [
   { id: "products",   label: "Produits",     icon: Package },
   { id: "stats",      label: "Statistiques", icon: BarChart3 },
   { id: "users",      label: "Utilisateurs", icon: Settings },
+  { id: "chiffres", label: "Chiffres", icon: BarChart3 },
+  { id: "stats-chiffres", label: "Stats Chiffres", icon: TrendingUp },
 ];
 
 export default function AdminDashboard() {
@@ -45,6 +49,8 @@ export default function AdminDashboard() {
       case "stats":      return <StatsTab />;
       case "users":      return <UsersTab />;
       default:           return <OverviewTab />;
+      case "chiffres":       return <ChiffresTab />;
+      case "stats-chiffres": return <StatsChiffresTab />;
     }
   };
 

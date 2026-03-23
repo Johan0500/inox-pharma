@@ -19,6 +19,7 @@ import planningRoutes   from "./routes/planning";
 import statsRoutes      from "./routes/stats";
 import sectorRoutes     from "./routes/sectors";
 import { setupGPSSocket } from "./socket/gpsSocket";
+import salesReportRoutes from "./routes/salesReports";
 
 dotenv.config();
 
@@ -60,7 +61,7 @@ app.use("/api/products",      productRoutes);
 app.use("/api/planning",      planningRoutes);
 app.use("/api/stats",         statsRoutes);
 app.use("/api/sectors",       sectorRoutes);
-
+app.use("/api/sales-reports", salesReportRoutes);
 // ── Socket GPS ───────────────────────────────────────────────
 setupGPSSocket(io);
 
