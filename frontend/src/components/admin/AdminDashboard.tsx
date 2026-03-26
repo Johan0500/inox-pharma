@@ -4,8 +4,9 @@ import {
   LayoutDashboard, MapPin, Users, Building2,
   Calendar, FileText, Package, BarChart3,
   Settings, LogOut, ChevronLeft, ChevronRight,
-  TrendingUp, DollarSign, MessageCircle, Shield, Lock,
+  TrendingUp, DollarSign, MessageCircle, Shield, Lock, Target,
 } from "lucide-react";
+import ObjectivesTab from "./tabs/ObjectivesTab";
 
 import OverviewTab       from "./tabs/OverviewTab";
 import GPSMapTab         from "./tabs/GPSMapTab";
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
     { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "objectives",     label: "Objectifs",        icon: Target,          roles: ["SUPER_ADMIN","ADMIN"] },
   ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
@@ -61,6 +63,7 @@ export default function AdminDashboard() {
       case "messages":       return <MessagesTab />;
       case "history":        return <LoginHistoryTab />;
       case "users":          return <UsersTab />;
+      case "objectives": return <ObjectivesTab />;
       default:               return <OverviewTab />;
     }
   };

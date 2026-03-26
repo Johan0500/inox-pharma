@@ -21,6 +21,9 @@ import sectorRoutes      from "./routes/sectors";
 import salesReportRoutes from "./routes/salesReports";
 import messageRoutes     from "./routes/messages";
 import { setupGPSSocket } from "./socket/gpsSocket";
+import notificationRoutes from "./routes/notifications";
+import objectiveRoutes    from "./routes/objectives";
+import { checkInactiveDelegates } from "./utils/alerts";
 
 dotenv.config();
 
@@ -61,6 +64,8 @@ app.use("/api/stats",         statsRoutes);
 app.use("/api/sectors",       sectorRoutes);
 app.use("/api/sales-reports", salesReportRoutes);
 app.use("/api/messages",      messageRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/objectives",    objectiveRoutes);
 
 // ── Socket GPS + Messages ────────────────────────────────────
 setupGPSSocket(io);
@@ -170,4 +175,8 @@ async function initDb() {
   } finally {
     await prisma.$disconnect();
   }
+  // Vérifier les délégués inactifs toutes les 24h
+setInterval(() => { checkInactiveDelegates(); }, 24 * 60 * 60 * 1000);
+// Première vérification au démarrage
+setTimeout(() => { checkInactiveDelegates(); }, 10000);
 }

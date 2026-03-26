@@ -8,6 +8,7 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -26,26 +27,30 @@ enum SalesReportStatus {
   SUBMITTED
 }
 
+
+
 model User {
-  id               String           @id @default(cuid())
-  email            String           @unique
-  password         String
-  firstName        String
-  lastName         String
-  role             Role             @default(DELEGATE)
-  isActive         Boolean          @default(true)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  createdById      String?
-  createdBy        User?            @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers     User[]           @relation("UserCreator")
-  adminLabs        AdminLaboratory[]
-  delegate         Delegate?
-  activeSessions   ActiveSession[]
-  loginHistory     LoginHistory[]
-  salesReports     SalesReport[]
-  sentMessages     Message[]        @relation("SentMessages")
-  receivedMessages Message[]        @relation("ReceivedMessages")
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  firstName     String
+  lastName      String
+  role          Role     @default(DELEGATE)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdById   String?
+
+  createdBy         User?              @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers      User[]             @relation("UserCreator")
+  adminLabs         AdminLaboratory[]
+  delegate          Delegate?
+  activeSessions    ActiveSession[]
+  loginHistory      LoginHistory[]
+  salesReports      SalesReport[]
+  sentMessages      Message[]          @relation("SentMessages")
+  receivedMessages  Message[]          @relation("ReceivedMessages")
+  pushSubscriptions PushSubscription[]
 }
 
 model ActiveSession {
@@ -55,7 +60,8 @@ model ActiveSession {
   deviceInfo String?
   lastActive DateTime @default(now())
   createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model LoginHistory {
@@ -65,8 +71,21 @@ model LoginHistory {
   ipAddress  String?
   success    Boolean  @default(true)
   createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 
 model Message {
   id         String   @id @default(cuid())
@@ -75,14 +94,18 @@ model Message {
   content    String
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
-  sender     User     @relation("SentMessages",     fields: [senderId],   references: [id])
-  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  sender   User @relation("SentMessages",     fields: [senderId],   references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
 }
 
+
+
 model Laboratory {
-  id           String                @id @default(cuid())
-  name         String                @unique
-  createdAt    DateTime              @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
   admins       AdminLaboratory[]
   grossLabs    GrossisteLaboratory[]
   delegates    Delegate[]
@@ -93,15 +116,20 @@ model Laboratory {
 model AdminLaboratory {
   userId       String
   laboratoryId String
-  user         User       @relation(fields: [userId],       references: [id], onDelete: Cascade)
-  laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
+
+  user       User       @relation(fields: [userId],       references: [id], onDelete: Cascade)
+  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
+
   @@id([userId, laboratoryId])
 }
 
+
+
 model Grossiste {
-  id         String                @id @default(cuid())
-  name       String                @unique
-  createdAt  DateTime              @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
   labs       GrossisteLaboratory[]
   pharmacies Pharmacy[]
 }
@@ -109,55 +137,62 @@ model Grossiste {
 model GrossisteLaboratory {
   grossisteId  String
   laboratoryId String
-  grossiste    Grossiste  @relation(fields: [grossisteId],  references: [id])
-  laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
-  updatedAt    DateTime   @updatedAt
+  updatedAt    DateTime @updatedAt
   updatedById  String?
-  stocks       GrossisteStock[]
+
+  grossiste  Grossiste  @relation(fields: [grossisteId],  references: [id])
+  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
+  stocks     GrossisteStock[]
+
   @@id([grossisteId, laboratoryId])
 }
 
 model GrossisteStock {
-  id           String              @id @default(cuid())
+  id           String   @id @default(cuid())
   grossisteId  String
   laboratoryId String
   productName  String
-  quantity     Int                 @default(0)
-  unitPrice    Float               @default(0)
+  quantity     Int      @default(0)
+  unitPrice    Float    @default(0)
   month        String
-  updatedAt    DateTime            @updatedAt
+  updatedAt    DateTime @updatedAt
+
   grossisteLab GrossisteLaboratory @relation(fields: [grossisteId, laboratoryId], references: [grossisteId, laboratoryId])
 }
 
 model Pharmacy {
-  id           String        @id @default(cuid())
-  grossisteId  String?
-  codeClient   String?
-  nom          String
-  pharmacien   String?
-  adresse      String?
-  ville        String?
-  region       String?
-  province     String?
-  telephone    String?
-  email        String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
+  id          String   @id @default(cuid())
+  grossisteId String?
+  codeClient  String?
+  nom         String
+  pharmacien  String?
+  adresse     String?
+  ville       String?
+  region      String?
+  province    String?
+  telephone   String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
   grossiste    Grossiste?    @relation(fields: [grossisteId], references: [id])
   visitReports VisitReport[]
+
   @@unique([grossisteId, codeClient])
 }
 
+
 model Sector {
-  id            String     @id @default(cuid())
+  id            String   @id @default(cuid())
   numero        Int
   delegateName  String?
   zoneResidence String
   peripherie    String?
   axesMission   String?
   type          String
-  createdAt     DateTime   @default(now())
-  delegates     Delegate[]
+  createdAt     DateTime @default(now())
+
+  delegates Delegate[]
 }
 
 model Delegate {
@@ -172,12 +207,15 @@ model Delegate {
   lastLng      Float?
   lastSeen     DateTime?
   createdAt    DateTime       @default(now())
-  user         User           @relation(fields: [userId],       references: [id], onDelete: Cascade)
-  laboratory   Laboratory     @relation(fields: [laboratoryId], references: [id])
-  sector       Sector?        @relation(fields: [sectorId],     references: [id])
+
+  user       User       @relation(fields: [userId],       references: [id], onDelete: Cascade)
+  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
+  sector     Sector?    @relation(fields: [sectorId],     references: [id])
+
   gpsLogs      GPSLog[]
   visitReports VisitReport[]
   planning     WeeklyPlanning[]
+  objectives   DelegateObjective[]
 }
 
 model GPSLog {
@@ -187,17 +225,8 @@ model GPSLog {
   longitude  Float
   status     DelegateStatus
   timestamp  DateTime       @default(now())
-  delegate   Delegate       @relation(fields: [delegateId], references: [id], onDelete: Cascade)
-}
 
-model Product {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  group       String
-  specialty   String
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  delegate Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
 }
 
 model WeeklyPlanning {
@@ -212,11 +241,27 @@ model WeeklyPlanning {
   vendredi   String?
   month      String
   createdAt  DateTime @default(now())
-  delegate   Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+
+  delegate Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+}
+
+model DelegateObjective {
+  id               String   @id @default(cuid())
+  delegateId       String
+  month            String
+  year             Int
+  targetVisits     Int      @default(0)
+  targetReports    Int      @default(0)
+  targetPharmacies Int      @default(0)
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  delegate Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
 }
 
 model VisitReport {
-  id            String     @id @default(cuid())
+  id            String    @id @default(cuid())
   delegateId    String
   laboratoryId  String
   pharmacyId    String?
@@ -225,11 +270,12 @@ model VisitReport {
   productsShown String?
   notes         String
   aiSummary     String?
-  visitDate     DateTime   @default(now())
-  createdAt     DateTime   @default(now())
-  delegate      Delegate   @relation(fields: [delegateId],   references: [id])
-  laboratory    Laboratory @relation(fields: [laboratoryId], references: [id])
-  pharmacy      Pharmacy?  @relation(fields: [pharmacyId],   references: [id])
+  visitDate     DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  delegate   Delegate   @relation(fields: [delegateId],   references: [id])
+  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
+  pharmacy   Pharmacy?  @relation(fields: [pharmacyId],   references: [id])
 }
 
 model SalesReport {
@@ -242,32 +288,49 @@ model SalesReport {
   submittedAt  DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
-  admin        User              @relation(fields: [adminId],      references: [id])
-  laboratory   Laboratory        @relation(fields: [laboratoryId], references: [id])
-  lines        SalesReportLine[]
+
+  admin      User              @relation(fields: [adminId],      references: [id])
+  laboratory Laboratory        @relation(fields: [laboratoryId], references: [id])
+  lines      SalesReportLine[]
 }
 
 model SalesReportLine {
-  id             String      @id @default(cuid())
-  reportId       String
-  itemNumber     Int
-  designation    String
-  pght           Float       @default(0)
-  copharmedStock Float       @default(0)
-  copharmedVente Float       @default(0)
-  copharmedS     Float       @default(0)
-  copharmedV     Float       @default(0)
-  laborexStock   Float       @default(0)
-  laborexVente   Float       @default(0)
-  laborexS       Float       @default(0)
-  laborexV       Float       @default(0)
-  tedisStock     Float       @default(0)
-  tedisVente     Float       @default(0)
-  tedisS         Float       @default(0)
-  tedisV         Float       @default(0)
-  dpciStock      Float       @default(0)
-  dpciVente      Float       @default(0)
-  dpciS          Float       @default(0)
-  dpciV          Float       @default(0)
-  report         SalesReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  id           String @id @default(cuid())
+  reportId     String
+  itemNumber   Int
+  designation  String
+  pght         Float  @default(0)
+
+  copharmedStock Float @default(0)
+  copharmedVente Float @default(0)
+  copharmedS     Float @default(0)
+  copharmedV     Float @default(0)
+
+  laborexStock Float @default(0)
+  laborexVente Float @default(0)
+  laborexS     Float @default(0)
+  laborexV     Float @default(0)
+
+  tedisStock Float @default(0)
+  tedisVente Float @default(0)
+  tedisS     Float @default(0)
+  tedisV     Float @default(0)
+
+  dpciStock Float @default(0)
+  dpciVente Float @default(0)
+  dpciS     Float @default(0)
+  dpciV     Float @default(0)
+
+  report SalesReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  group       String
+  specialty   String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }
