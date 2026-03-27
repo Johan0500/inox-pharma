@@ -6,9 +6,9 @@
   },
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && npx tsc",
     "start": "node dist/index.js",
-    "postinstall": "node_modules/.bin/prisma generate",
+    "postinstall": "prisma generate",
     "db:migrate": "node_modules/.bin/prisma migrate deploy",
     "db:seed": "node_modules/.bin/ts-node prisma/seed.ts"
   },
