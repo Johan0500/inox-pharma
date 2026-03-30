@@ -214,8 +214,8 @@ model DelegateObjective {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   delegate         Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
-
   @@unique([delegateId, month, year])
+  
 }
 
 model VisitReport {
