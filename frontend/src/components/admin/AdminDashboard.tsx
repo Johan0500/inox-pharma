@@ -44,6 +44,7 @@ export default function AdminDashboard() {
   const TABS = [
     { id: "overview",       label: "Accueil",          icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "pharmacies-map", label: "Carte Pharmacies", icon: MapPin, roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN","ADMIN"] },
@@ -76,6 +77,7 @@ export default function AdminDashboard() {
       case "messages":       return <MessagesTab />;
       case "history":        return <LoginHistoryTab />;
       case "users":          return <UsersTab />;
+      case "pharmacies-map": return <PharmaciesMapTab />;
       default:               return <OverviewTab />;
     }
   };

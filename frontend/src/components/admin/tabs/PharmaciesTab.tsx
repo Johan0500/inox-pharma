@@ -154,6 +154,7 @@ export function PharmaciesTab() {
         )}
       </div>
     </div>
-  );
+ );
+ 
 }
 export default PharmaciesTab;
