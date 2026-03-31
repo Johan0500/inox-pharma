@@ -10,24 +10,36 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import api          from "../../services/api";
 
-import OverviewTab           from "./tabs/OverviewTab";
-import GPSMapTab             from "./tabs/GPSMapTab";
-import DelegatesTab          from "./tabs/DelegatesTab";
-import PharmaciesTab         from "./tabs/PharmaciesTab";
-import PharmaciesMapTab      from "./tabs/PharmaciesMapTab";
-import PlanningTab           from "./tabs/PlanningTab";
-import ReportsTab            from "./tabs/ReportsTab";
-import ProductsTab           from "./tabs/ProductsTab";
-import StatsTab              from "./tabs/StatsTab";
-import UsersTab              from "./tabs/UsersTab";
-import ChiffresTab           from "./tabs/ChiffresTab";
-import StatsChiffresTab      from "./tabs/StatsChiffresTab";
-import MessagesTab           from "./tabs/MessagesTab";
-import LoginHistoryTab       from "./tabs/LoginHistoryTab";
-import ObjectivesTab         from "./tabs/ObjectivesTab";
-import ChangePasswordModal   from "../shared/ChangePasswordModal";
+import OverviewTab            from "./tabs/OverviewTab";
+import GPSMapTab              from "./tabs/GPSMapTab";
+import DelegatesTab           from "./tabs/DelegatesTab";
+import PharmaciesTab          from "./tabs/PharmaciesTab";
+import PlanningTab            from "./tabs/PlanningTab";
+import ReportsTab             from "./tabs/ReportsTab";
+import ProductsTab            from "./tabs/ProductsTab";
+import StatsTab               from "./tabs/StatsTab";
+import UsersTab               from "./tabs/UsersTab";
+import ChiffresTab            from "./tabs/ChiffresTab";
+import StatsChiffresTab       from "./tabs/StatsChiffresTab";
+import MessagesTab            from "./tabs/MessagesTab";
+import LoginHistoryTab        from "./tabs/LoginHistoryTab";
+import ObjectivesTab          from "./tabs/ObjectivesTab";
+import ChangePasswordModal    from "../shared/ChangePasswordModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
 
+// ── PharmaciesMapTab optionnel ───────────────────────────────
+let PharmaciesMapTab: React.ComponentType;
+try {
+  PharmaciesMapTab = require("./tabs/PharmaciesMapTab").default;
+} catch {
+  PharmaciesMapTab = () => (
+    <div style={{ background:"white", borderRadius:16, padding:48, textAlign:"center", color:"#9ca3af" }}>
+      Carte des pharmacies — bientôt disponible
+    </div>
+  );
+}
+
+// ── Couleurs et noms par labo ────────────────────────────────
 const LAB_COLORS: Record<string, string> = {
   "lic-pharma": "#065f46",
   "medisure":   "#1e40af",
@@ -135,10 +147,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
         </button>
 
         {/* Logo + labo */}
-        <div style={{
-          padding: "20px 16px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
-        }}>
+        <div style={{ padding:"20px 16px", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{
               width:40, height:40, borderRadius:12, flexShrink:0,
@@ -160,7 +169,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
             )}
           </div>
 
-          {/* Bouton changer de labo (Super Admin) */}
+          {/* Bouton changer de labo */}
           {!collapsed && user?.role === "SUPER_ADMIN" && onChangeLab && (
             <button onClick={onChangeLab} style={{
               marginTop:12, width:"100%",
@@ -169,11 +178,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
               borderRadius:10, padding:"6px 10px",
               color:"rgba(255,255,255,0.85)", fontSize:11,
               cursor:"pointer", display:"flex", alignItems:"center", gap:6,
-              transition:"all 0.2s",
-            }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.25)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
-            >
+            }}>
               <ArrowLeft size={12} />
               Changer de laboratoire
             </button>
@@ -206,9 +211,8 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
                   color: isActive ? "white" : "rgba(255,255,255,0.6)",
                   fontWeight: isActive ? 600 : 400,
                   fontSize:13,
-                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
+                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
                   transition:"all 0.15s",
-                  backdropFilter: isActive ? "blur(10px)" : "none",
                 }}
                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
@@ -242,19 +246,15 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
         </nav>
 
         {/* Utilisateur */}
-        <div style={{
-          padding:"12px 16px",
-          borderTop:"1px solid rgba(255,255,255,0.1)",
-        }}>
+        <div style={{ padding:"12px 16px", borderTop:"1px solid rgba(255,255,255,0.1)" }}>
           {!collapsed && (
             <div style={{ marginBottom:8, padding:"8px 10px", background:"rgba(255,255,255,0.1)", borderRadius:10 }}>
-              <p style={{ color:"white", fontSize:13, fontWeight:600, margin:0, letterSpacing:0.3 }}>
+              <p style={{ color:"white", fontSize:13, fontWeight:600, margin:0 }}>
                 {user?.firstName} {user?.lastName}
               </p>
               <p style={{ color:"rgba(255,255,255,0.55)", fontSize:10, margin:0 }}>{user?.email}</p>
             </div>
           )}
-
           <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
             <button onClick={() => setShowPwd(true)} style={{
               display:"flex", alignItems:"center", gap:8,
@@ -262,26 +262,19 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
               color:"rgba(255,255,255,0.65)", cursor:"pointer",
               padding:"8px 10px", borderRadius:10, fontSize:12,
               justifyContent: collapsed ? "center" : "flex-start",
-              transition:"all 0.15s",
             }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
               title={collapsed ? "Changer mot de passe" : undefined}
             >
               <Lock size={14} />
               {!collapsed && "Changer mot de passe"}
             </button>
-
             <button onClick={logout} style={{
               display:"flex", alignItems:"center", gap:8,
               background:"transparent", border:"none",
               color:"rgba(255,100,100,0.8)", cursor:"pointer",
               padding:"8px 10px", borderRadius:10, fontSize:12,
               justifyContent: collapsed ? "center" : "flex-start",
-              transition:"all 0.15s",
             }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,100,100,0.15)"; e.currentTarget.style.color = "#fca5a5"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,100,100,0.8)"; }}
               title={collapsed ? "Déconnexion" : undefined}
             >
               <LogOut size={14} />
@@ -293,7 +286,6 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
 
       {/* ── Contenu principal ────────────────────────────── */}
       <main style={{ flex:1, overflowY:"auto", background:"#f0fdf4" }}>
-        {/* Header contenu */}
         <div style={{
           background:"white",
           borderBottom:"1px solid #d1fae5",
@@ -302,10 +294,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
           boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
         }}>
           <div>
-            <h2 style={{
-              color:"#064e3b", fontSize:18, fontWeight:700,
-              margin:0, fontFamily:"Georgia, serif",
-            }}>
+            <h2 style={{ color:"#064e3b", fontSize:18, fontWeight:700, margin:0, fontFamily:"Georgia, serif" }}>
               {TABS.find((t) => t.id === activeTab)?.label || "Tableau de bord"}
             </h2>
             <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>
