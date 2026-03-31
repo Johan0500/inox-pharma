@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import ExcelJS          from "exceljs";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
 import { sendEmail, reportSubmittedEmail }         from "../utils/mailer";
-import { notifyAdmins }                            from "./notifications";
+import { notifyAdmins }  from "./notifications"
 
 const router = Router();
 const prisma = new PrismaClient();
