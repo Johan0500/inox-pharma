@@ -5,45 +5,60 @@ import {
   Calendar, FileText, Package, BarChart3,
   Settings, LogOut, ChevronLeft, ChevronRight,
   TrendingUp, DollarSign, MessageCircle, Shield,
-  Lock, Target, Map,
+  Lock, Target, Map, ArrowLeft,
 } from "lucide-react";
-import { useQuery }   from "@tanstack/react-query";
-import api            from "../../services/api";
+import { useQuery } from "@tanstack/react-query";
+import api          from "../../services/api";
 
-import OverviewTab            from "./tabs/OverviewTab";
-import GPSMapTab              from "./tabs/GPSMapTab";
-import DelegatesTab           from "./tabs/DelegatesTab";
-import PharmaciesTab          from "./tabs/PharmaciesTab";
-import PlanningTab            from "./tabs/PlanningTab";
-import ReportsTab             from "./tabs/ReportsTab";
-import ProductsTab            from "./tabs/ProductsTab";
-import StatsTab               from "./tabs/StatsTab";
-import UsersTab               from "./tabs/UsersTab";
-import ChiffresTab            from "./tabs/ChiffresTab";
-import StatsChiffresTab       from "./tabs/StatsChiffresTab";
-import MessagesTab            from "./tabs/MessagesTab";
-import LoginHistoryTab        from "./tabs/LoginHistoryTab";
-import ObjectivesTab          from "./tabs/ObjectivesTab";
-import ChangePasswordModal    from "../shared/ChangePasswordModal";
+import OverviewTab           from "./tabs/OverviewTab";
+import GPSMapTab             from "./tabs/GPSMapTab";
+import DelegatesTab          from "./tabs/DelegatesTab";
+import PharmaciesTab         from "./tabs/PharmaciesTab";
+import PharmaciesMapTab      from "./tabs/PharmaciesMapTab";
+import PlanningTab           from "./tabs/PlanningTab";
+import ReportsTab            from "./tabs/ReportsTab";
+import ProductsTab           from "./tabs/ProductsTab";
+import StatsTab              from "./tabs/StatsTab";
+import UsersTab              from "./tabs/UsersTab";
+import ChiffresTab           from "./tabs/ChiffresTab";
+import StatsChiffresTab      from "./tabs/StatsChiffresTab";
+import MessagesTab           from "./tabs/MessagesTab";
+import LoginHistoryTab       from "./tabs/LoginHistoryTab";
+import ObjectivesTab         from "./tabs/ObjectivesTab";
+import ChangePasswordModal   from "../shared/ChangePasswordModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
 
-// ── Carte Pharmacies (inline fallback si le fichier n'existe pas encore) ──
-let PharmaciesMapTab: React.ComponentType;
-try {
-  PharmaciesMapTab = require("./tabs/PharmaciesMapTab").default;
-} catch {
-  PharmaciesMapTab = () => (
-    <div className="bg-white rounded-2xl p-12 text-center text-gray-400">
-      Carte des pharmacies — bientôt disponible
-    </div>
-  );
+const LAB_COLORS: Record<string, string> = {
+  "lic-pharma": "#065f46",
+  "medisure":   "#1e40af",
+  "sigma":      "#7c2d12",
+  "ephaco":     "#6b21a8",
+  "stallion":   "#92400e",
+  "all":        "#064e3b",
+};
+
+const LAB_NAMES: Record<string, string> = {
+  "lic-pharma": "LIC PHARMA",
+  "medisure":   "MEDISURE",
+  "sigma":      "SIGMA",
+  "ephaco":     "EPHACO",
+  "stallion":   "STALLION",
+  "all":        "TOUS LES LABOS",
+};
+
+interface Props {
+  selectedLab?:  string | null;
+  onChangeLab?:  () => void;
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
   const { user, logout }          = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [showPwd,   setShowPwd]   = useState(false);
+
+  const labColor = LAB_COLORS[selectedLab || "all"] || "#064e3b";
+  const labName  = LAB_NAMES[selectedLab  || "all"] || "TABLEAU DE BORD";
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey:        ["unread-count-admin"],
@@ -52,21 +67,21 @@ export default function AdminDashboard() {
   });
 
   const TABS = [
-    { id: "overview",       label: "Accueil",          icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "planning",       label: "Planning",         icon: Calendar,        roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "reports",        label: "Rapports",         icon: FileText,        roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "products",       label: "Produits",         icon: Package,         roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "chiffres",       label: "Chiffres",         icon: DollarSign,      roles: ["ADMIN"]                },
-    { id: "stats-chiffres", label: "Stats Chiffres",   icon: TrendingUp,      roles: ["SUPER_ADMIN"]          },
-    { id: "objectives",     label: "Objectifs",        icon: Target,          roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "stats",          label: "Statistiques",     icon: BarChart3,       roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN", "ADMIN"] },
-    { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "overview",       label: "Accueil",          icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "planning",       label: "Planning",         icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "reports",        label: "Rapports",         icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "products",       label: "Produits",         icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "chiffres",       label: "Chiffres",         icon: DollarSign,      roles: ["ADMIN"]               },
+    { id: "stats-chiffres", label: "Stats Chiffres",   icon: TrendingUp,      roles: ["SUPER_ADMIN"]         },
+    { id: "objectives",     label: "Objectifs",        icon: Target,          roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "stats",          label: "Statistiques",     icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
   ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
@@ -91,99 +106,222 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div style={{ display:"flex", height:"100vh", background:"#f0fdf4", overflow:"hidden", fontFamily:"system-ui, sans-serif" }}>
 
       {/* ── Sidebar ──────────────────────────────────────── */}
-      <aside className={`${collapsed ? "w-16" : "w-64"} transition-all duration-300
-                        bg-gradient-to-b from-slate-900 to-slate-800
-                        flex flex-col shadow-xl flex-shrink-0 relative`}>
+      <aside style={{
+        width: collapsed ? 64 : 256,
+        transition: "width 0.3s ease",
+        background: `linear-gradient(180deg, ${labColor} 0%, ${labColor}ee 100%)`,
+        display: "flex", flexDirection: "column",
+        boxShadow: "4px 0 30px rgba(0,0,0,0.15)",
+        flexShrink: 0, position: "relative",
+      }}>
 
+        {/* Bouton collapse */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-6 bg-blue-600 text-white rounded-full p-0.5 shadow-md hover:bg-blue-700 transition z-10"
+          style={{
+            position:"absolute", right:-12, top:24,
+            width:24, height:24, borderRadius:"50%",
+            background:"white", border:`2px solid ${labColor}`,
+            color:labColor, cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            boxShadow:"0 2px 8px rgba(0,0,0,0.15)", zIndex:10,
+            fontSize:12,
+          }}
         >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          {collapsed ? "›" : "‹"}
         </button>
 
-        <div className={`p-4 border-b border-slate-700 ${collapsed ? "flex justify-center" : ""}`}>
-          <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
-            <span className="text-2xl flex-shrink-0">🏥</span>
+        {/* Logo + labo */}
+        <div style={{
+          padding: "20px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{
+              width:40, height:40, borderRadius:12, flexShrink:0,
+              background:"rgba(255,255,255,0.2)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              boxShadow:"0 4px 12px rgba(0,0,0,0.15)",
+            }}>
+              <span style={{ fontSize:20 }}>🏥</span>
+            </div>
             {!collapsed && (
-              <div className="overflow-hidden">
-                <h1 className="font-bold text-white text-base leading-tight">INOX PHARMA</h1>
-                <p className="text-slate-400 text-xs truncate">
-                  {user?.role === "SUPER_ADMIN" ? "Super Administrateur" : "Administrateur"}
+              <div style={{ overflow:"hidden" }}>
+                <p style={{ color:"white", fontFamily:"Georgia, serif", fontSize:14, fontWeight:700, margin:0, letterSpacing:1 }}>
+                  INOX PHARMA
+                </p>
+                <p style={{ color:"rgba(255,255,255,0.65)", fontSize:10, margin:0, letterSpacing:1 }}>
+                  {labName}
                 </p>
               </div>
             )}
           </div>
+
+          {/* Bouton changer de labo (Super Admin) */}
+          {!collapsed && user?.role === "SUPER_ADMIN" && onChangeLab && (
+            <button onClick={onChangeLab} style={{
+              marginTop:12, width:"100%",
+              background:"rgba(255,255,255,0.15)",
+              border:"1px solid rgba(255,255,255,0.25)",
+              borderRadius:10, padding:"6px 10px",
+              color:"rgba(255,255,255,0.85)", fontSize:11,
+              cursor:"pointer", display:"flex", alignItems:"center", gap:6,
+              transition:"all 0.2s",
+            }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.25)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+            >
+              <ArrowLeft size={12} />
+              Changer de laboratoire
+            </button>
+          )}
         </div>
 
+        {/* Notifications */}
         {!collapsed && (
-          <div className="px-3 py-2 border-b border-slate-700">
+          <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
             <PushNotificationToggle />
           </div>
         )}
 
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              title={collapsed ? label : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-sm relative
-                ${activeTab === id
-                  ? "bg-blue-600 text-white font-semibold shadow-md"
-                  : "text-slate-400 hover:bg-slate-700 hover:text-white"
-                }
-                ${collapsed ? "justify-center" : ""}`}
-            >
-              <div className="relative flex-shrink-0">
-                <Icon size={18} />
-                {id === "messages" && (unreadCount as number) > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">
-                    {(unreadCount as number) > 9 ? "9+" : unreadCount}
-                  </span>
+        {/* Navigation */}
+        <nav style={{ flex:1, padding:"8px", overflowY:"auto" }}>
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                title={collapsed ? label : undefined}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center",
+                  gap:12, padding: collapsed ? "10px" : "10px 12px",
+                  borderRadius:12, border:"none", cursor:"pointer",
+                  marginBottom:2, position:"relative",
+                  justifyContent: collapsed ? "center" : "flex-start",
+                  background: isActive ? "rgba(255,255,255,0.2)" : "transparent",
+                  color: isActive ? "white" : "rgba(255,255,255,0.6)",
+                  fontWeight: isActive ? 600 : 400,
+                  fontSize:13,
+                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
+                  transition:"all 0.15s",
+                  backdropFilter: isActive ? "blur(10px)" : "none",
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ position:"relative", flexShrink:0 }}>
+                  <Icon size={17} />
+                  {id === "messages" && (unreadCount as number) > 0 && (
+                    <span style={{
+                      position:"absolute", top:-4, right:-4,
+                      background:"#ef4444", color:"white",
+                      fontSize:9, fontWeight:700, borderRadius:"50%",
+                      width:14, height:14, display:"flex",
+                      alignItems:"center", justifyContent:"center",
+                    }}>
+                      {(unreadCount as number) > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                {!collapsed && <span>{label}</span>}
+                {isActive && !collapsed && (
+                  <div style={{
+                    position:"absolute", right:0, top:"50%",
+                    transform:"translateY(-50%)",
+                    width:3, height:20, borderRadius:2,
+                    background:"rgba(255,255,255,0.8)",
+                  }}/>
                 )}
-              </div>
-              {!collapsed && <span>{label}</span>}
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </nav>
 
-        <div className={`p-3 border-t border-slate-700 space-y-1 ${collapsed ? "flex flex-col items-center" : ""}`}>
+        {/* Utilisateur */}
+        <div style={{
+          padding:"12px 16px",
+          borderTop:"1px solid rgba(255,255,255,0.1)",
+        }}>
           {!collapsed && (
-            <div className="mb-2 px-1">
-              <p className="font-medium text-white text-sm truncate">
+            <div style={{ marginBottom:8, padding:"8px 10px", background:"rgba(255,255,255,0.1)", borderRadius:10 }}>
+              <p style={{ color:"white", fontSize:13, fontWeight:600, margin:0, letterSpacing:0.3 }}>
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              <p style={{ color:"rgba(255,255,255,0.55)", fontSize:10, margin:0 }}>{user?.email}</p>
             </div>
           )}
 
-          <button
-            onClick={() => setShowPwd(true)}
-            title={collapsed ? "Changer le mot de passe" : undefined}
-            className={`flex items-center gap-2 text-slate-400 hover:text-white text-sm px-3 py-2 rounded-xl hover:bg-slate-700 transition ${collapsed ? "justify-center w-full" : "w-full"}`}
-          >
-            <Lock size={16} />
-            {!collapsed && "Changer mot de passe"}
-          </button>
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            <button onClick={() => setShowPwd(true)} style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"transparent", border:"none",
+              color:"rgba(255,255,255,0.65)", cursor:"pointer",
+              padding:"8px 10px", borderRadius:10, fontSize:12,
+              justifyContent: collapsed ? "center" : "flex-start",
+              transition:"all 0.15s",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
+              title={collapsed ? "Changer mot de passe" : undefined}
+            >
+              <Lock size={14} />
+              {!collapsed && "Changer mot de passe"}
+            </button>
 
-          <button
-            onClick={logout}
-            title={collapsed ? "Déconnexion" : undefined}
-            className={`flex items-center gap-2 text-red-400 hover:text-red-300 text-sm px-3 py-2 rounded-xl hover:bg-slate-700 transition ${collapsed ? "justify-center w-full" : "w-full"}`}
-          >
-            <LogOut size={16} />
-            {!collapsed && "Déconnexion"}
-          </button>
+            <button onClick={logout} style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"transparent", border:"none",
+              color:"rgba(255,100,100,0.8)", cursor:"pointer",
+              padding:"8px 10px", borderRadius:10, fontSize:12,
+              justifyContent: collapsed ? "center" : "flex-start",
+              transition:"all 0.15s",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,100,100,0.15)"; e.currentTarget.style.color = "#fca5a5"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,100,100,0.8)"; }}
+              title={collapsed ? "Déconnexion" : undefined}
+            >
+              <LogOut size={14} />
+              {!collapsed && "Déconnexion"}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* ── Contenu principal ────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-7xl mx-auto">
+      <main style={{ flex:1, overflowY:"auto", background:"#f0fdf4" }}>
+        {/* Header contenu */}
+        <div style={{
+          background:"white",
+          borderBottom:"1px solid #d1fae5",
+          padding:"16px 24px",
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
+        }}>
+          <div>
+            <h2 style={{
+              color:"#064e3b", fontSize:18, fontWeight:700,
+              margin:0, fontFamily:"Georgia, serif",
+            }}>
+              {TABS.find((t) => t.id === activeTab)?.label || "Tableau de bord"}
+            </h2>
+            <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>
+              {labName} — {new Date().toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
+            </p>
+          </div>
+          <div style={{
+            background:"#f0fdf4", border:`1px solid ${labColor}30`,
+            borderRadius:10, padding:"6px 12px",
+            color:labColor, fontSize:12, fontWeight:600,
+          }}>
+            {user?.role === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
+          </div>
+        </div>
+
+        <div style={{ padding:24, maxWidth:1400, margin:"0 auto" }}>
           {renderTab()}
         </div>
       </main>

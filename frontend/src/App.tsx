@@ -1,51 +1,42 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import LoginPage      from "./components/shared/LoginPage";
-import AdminDashboard from "./components/admin/AdminDashboard";
-import DelegateView   from "./components/delegate/DelegateView";
-import OfflineIndicator from "./components/shared/OfflineIndicator";
+import { useState, useEffect } from "react";
+import { useAuth }             from "./contexts/AuthContext";
+import SplashScreen            from "./components/shared/SplashScreen";
+import LoginPage               from "./components/shared/LoginPage";
+import LabSelector             from "./components/shared/LabSelector";
+import AdminDashboard          from "./components/admin/AdminDashboard";
+import DelegateView            from "./components/delegate/DelegateView";
+import OfflineIndicator        from "./components/shared/OfflineIndicator";
 
-function AppRoutes() {
-  const { user, isAuthenticated } = useAuth();
+export default function App() {
+  const { isAuthenticated, user } = useAuth();
+  const [splashDone, setSplashDone]   = useState(false);
+  const [selectedLab, setSelectedLab] = useState<string | null>(null);
+
+  // Reset lab si déconnexion
+  useEffect(() => {
+    if (!isAuthenticated) setSelectedLab(null);
+  }, [isAuthenticated]);
+
+  if (!splashDone) {
+    return <SplashScreen onComplete={() => setSplashDone(true)} />;
+  }
 
   if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
-    );
+    return <LoginPage />;
+  }
+
+  // Super Admin → sélection laboratoire d'abord
+  if (user?.role === "SUPER_ADMIN" && !selectedLab) {
+    return <LabSelector onSelect={setSelectedLab} />;
   }
 
   return (
-    <Routes>
-      {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && (
-        <Route path="/admin/*" element={<AdminDashboard />} />
-      )}
-      {user?.role === "DELEGATE" && (
-        <Route path="/delegate/*" element={<DelegateView />} />
-      )}
-      <Route
-        path="*"
-        element={
-          <Navigate
-            to={user?.role === "DELEGATE" ? "/delegate" : "/admin"}
-            replace
-          />
-        }
-      />
-    </Routes>
-  );
-}
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
-  );
-  return (
     <>
       <OfflineIndicator />
+      {user?.role === "DELEGATE"
+        ? <DelegateView />
+        : <AdminDashboard selectedLab={selectedLab} onChangeLab={() => setSelectedLab(null)} />
+      }
     </>
   );
 }
