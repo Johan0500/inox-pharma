@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPage      from "./components/shared/LoginPage";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import DelegateView   from "./components/delegate/DelegateView";
+import OfflineIndicator from "./components/shared/OfflineIndicator";
 
 function AppRoutes() {
   const { user, isAuthenticated } = useAuth();
@@ -41,5 +42,10 @@ export default function App() {
     <AuthProvider>
       <AppRoutes />
     </AuthProvider>
+  );
+  return (
+    <>
+      <OfflineIndicator />
+    </>
   );
 }

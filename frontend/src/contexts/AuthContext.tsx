@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { User } from "../types";
 import api from "../services/api";
+import { setupAutoSync } from "../services/offlineSync";
 
 interface AuthContextType {
   user:            User | null;
@@ -52,6 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handler = () => resetInactivityTimer();
     events.forEach((e) => window.addEventListener(e, handler));
     return () => events.forEach((e) => window.removeEventListener(e, handler));
+  }, [token]);
+
+  // Synchronisation automatique des rapports hors-ligne
+  useEffect(() => {
+    if (!token) return;
+    const cleanup = setupAutoSync((result) => {
+      if (result.synced > 0) {
+        console.log(`✅ ${result.synced} rapport(s) synchronisé(s) automatiquement`);
+      }
+    });
+    return cleanup;
   }, [token]);
 
   const resetInactivityTimer = () => {

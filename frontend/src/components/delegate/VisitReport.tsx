@@ -1,216 +1,233 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useState }    from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Sparkles, Save, Loader, CheckCircle } from "lucide-react";
-import axios from "axios";
-import api from "../../services/api";
-
-const SPECIALTIES = [
-  "MEDECIN GENERALE", "CHIRURGIE", "NEPHROLOGIE",
-  "GYNECO-SAGE FEMME", "DERMATOLOGIE", "DIABETOLOGIE",
-  "PEDIATRIE", "KINESIE", "PNEUMOLOGIE",
-  "ORL", "RHUMATOLOGIE NEURO TRAUMATO", "OPHTALMOLOGIE",
-];
-
-const PRODUCTS_BY_SPECIALTY: Record<string, string[]> = {
-  "CHIRURGIE":    ["CROCIP-TZ","ACICROF-P","PIRRO","ROLIK","FEROXYDE","HEAMOCARE","CYPRONURAN"],
-  "NEPHROLOGIE":  ["AZIENT","CROCIP-TZ","CROZOLE"],
-  "GYNECO-SAGE FEMME": ["AZIENT","BETAMECRO","HEAMOCARE","MRITIZ","CROZOLE"],
-  "DERMATOLOGIE": ["AZIENT","BETAMECRO","BECLOZOLE","KEOZOL","HEAMOCARE","MRITIZ","CROZOLE"],
-  "DIABETOLOGIE": ["GLIZAR MR","CROFORMIN","PREGIB","HEAMOCARE","CROCIP-TZ","CROZOLE"],
-  "PEDIATRIE":    ["CEXIME","CROCILLINE","CROZOLE","GUAMEN","ROLIK","FEROXYDE","TERCO","CYPRONURAN"],
-  "KINESIE":      ["CROLINI GEL","BETAMECRO","PIRRO","ACICROF-P","CETAFF","COFEN","DOLBUFEN","ROLIK"],
-  "PNEUMOLOGIE":  ["CEXIME","GUAMEN","AZIENT","MRITIZ","BETAMECRO","CROCIP TZ"],
-  "ORL":          ["CEXIME","AZIENT","GUAMEN","MRITIZ","BETAMECRO","COFEN","CROCILLINE","DOLBUFEN"],
-  "RHUMATOLOGIE NEURO TRAUMATO": ["PIRRO","ACICROF-P","PREGIB","ESOMECRO","BETAMECRO","CROLINI GEL"],
-  "OPHTALMOLOGIE":["CROGENTA","MRITIZ","BETAMECRO","AZIENT","CROCIP-TZ"],
-};
+import { FileText, Wifi, WifiOff, CheckCircle, Sparkles } from "lucide-react";
+import api             from "../../services/api";
+import { useAuth }     from "../../contexts/AuthContext";
+import { isOnline, saveReportOffline } from "../../services/offlineSync";
+import { useQuery }    from "@tanstack/react-query";
 
 export default function VisitReport() {
-  const { register, handleSubmit, watch, reset } = useForm();
-  const [aiSummary,     setAiSummary]     = useState("");
-  const [loadingAI,     setLoadingAI]     = useState(false);
-  const [selectedProds, setSelectedProds] = useState<string[]>([]);
-  const [success,       setSuccess]       = useState(false);
+  const { user }   = useAuth();
+  const [form, setForm] = useState({
+    doctorName:    "",
+    specialty:     "",
+    pharmacyId:    "",
+    productsShown: "",
+    notes:         "",
+  });
+  const [aiSummary,  setAiSummary]  = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [success,    setSuccess]    = useState<"online" | "offline" | null>(null);
+  const [error,      setError]      = useState("");
 
-  const specialty = watch("specialty");
-  const notes     = watch("notes");
-  const suggestedProducts = PRODUCTS_BY_SPECIALTY[specialty] || [];
+  const { data: pharmaciesData } = useQuery({
+    queryKey: ["pharmacies-report"],
+    queryFn:  () => api.get("/pharmacies", { params: { limit: 500 } }).then((r) => r.data),
+  });
+  const pharmacies = pharmaciesData?.pharmacies || pharmaciesData || [];
 
-  // Résumé Gemini AI
-  const summarizeWithGemini = async () => {
-    if (!notes?.trim()) return;
-    setLoadingAI(true);
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn:  () => api.get("/products").then((r) => r.data),
+  });
+
+  const generateAI = async () => {
+    if (!form.notes || form.notes.length < 20) {
+      setError("Ajoutez plus de détails dans les notes pour générer un résumé IA");
+      return;
+    }
+    setGenerating(true);
+    setError("");
     try {
-      const key = import.meta.env.VITE_GEMINI_KEY;
-      if (!key || key === "votre_clé_gemini_ici") {
-        setAiSummary("⚠️ Clé Gemini non configurée dans frontend/.env (VITE_GEMINI_KEY)");
-        return;
-      }
-      const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${key}`,
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`,
         {
-          contents: [{
-            parts: [{
-              text:
-                `Tu es l'assistant d'un délégué médical d'INOX PHARMA en Côte d'Ivoire.\n` +
-                `Résume ce rapport de visite médicale en 3-4 phrases claires et professionnelles en français.\n\n` +
-                `Rapport : ${notes}`,
-            }],
-          }],
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Tu es un assistant pharmaceutique. Génère un résumé professionnel et concis (3-4 phrases) de cette visite médicale en français :
+                  Médecin: ${form.doctorName}
+                  Spécialité: ${form.specialty || "Non précisé"}
+                  Produits présentés: ${form.productsShown || "Non précisé"}
+                  Notes: ${form.notes}
+                  Le résumé doit être professionnel, objectif et mettre en valeur les points clés de la visite.`
+              }]
+            }]
+          }),
         }
       );
-      setAiSummary(res.data.candidates[0].content.parts[0].text);
-    } catch (err: any) {
-      setAiSummary("Erreur Gemini : " + (err.response?.data?.error?.message || err.message));
+      const data = await response.json();
+      setAiSummary(data.candidates?.[0]?.content?.parts?.[0]?.text || "");
+    } catch {
+      setError("Erreur lors de la génération IA");
     } finally {
-      setLoadingAI(false);
+      setGenerating(false);
     }
   };
 
-  // Enregistrer le rapport
-  const submitReport = useMutation({
-    mutationFn: (data: any) =>
-      api.post("/reports", {
-        ...data,
-        productsShown: selectedProds.join(", "),
-        aiSummary:     aiSummary || null,
-      }),
-    onSuccess: () => {
-      setSuccess(true);
-      reset();
-      setAiSummary("");
-      setSelectedProds([]);
-      setTimeout(() => setSuccess(false), 3000);
-    },
-    onError: (err: any) => alert("❌ " + (err.response?.data?.error || "Erreur lors de l'enregistrement")),
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess(null);
 
-  const toggleProduct = (p: string) =>
-    setSelectedProds((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
-    );
+    if (!form.doctorName || !form.notes) {
+      setError("Médecin et notes sont obligatoires");
+      return;
+    }
+
+    const reportData = { ...form, aiSummary };
+
+    if (!isOnline()) {
+      // Sauvegarder hors ligne
+      await saveReportOffline(reportData);
+      setSuccess("offline");
+      setForm({ doctorName:"", specialty:"", pharmacyId:"", productsShown:"", notes:"" });
+      setAiSummary("");
+      return;
+    }
+
+    try {
+      await api.post("/reports", reportData);
+      setSuccess("online");
+      setForm({ doctorName:"", specialty:"", pharmacyId:"", productsShown:"", notes:"" });
+      setAiSummary("");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      // Si erreur réseau → sauvegarder hors ligne
+      if (!navigator.onLine) {
+        await saveReportOffline(reportData);
+        setSuccess("offline");
+      } else {
+        setError(err.response?.data?.error || "Erreur lors de la soumission");
+      }
+    }
+  };
+
+  const SPECIALITES = ["Médecine générale","Pédiatrie","Gynécologie","Cardiologie","Dermatologie","Diabétologie","Rhumatologie","Chirurgie","Ophtalmologie","Neurologie","Néphologie","Kinésithérapie"];
 
   return (
-    <form
-      onSubmit={handleSubmit((d) => submitReport.mutate(d))}
-      className="space-y-4 pb-4"
-    >
-      <h2 className="text-xl font-bold text-gray-800">Rapport de Visite</h2>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-800">Rapport de Visite</h2>
+        <div className="flex items-center gap-1 text-xs">
+          {isOnline()
+            ? <><Wifi    size={12} className="text-green-500"/><span className="text-green-600">En ligne</span></>
+            : <><WifiOff size={12} className="text-red-500" /><span className="text-red-600">Hors ligne</span></>
+          }
+        </div>
+      </div>
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3 text-green-700">
-          <CheckCircle size={20} />
-          <p className="font-medium">Rapport enregistré avec succès !</p>
+      {success === "online" && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-2 text-green-700">
+          <CheckCircle size={18} />
+          <span className="font-medium">Rapport soumis avec succès !</span>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
-
-        {/* Médecin */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Médecin visité *
-          </label>
-          <input
-            {...register("doctorName", { required: true })}
-            className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            placeholder="Dr. Nom Prénom"
-          />
+      {success === "offline" && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 text-orange-700">
+          <div className="flex items-center gap-2 font-medium mb-1">
+            <WifiOff size={16} />
+            Rapport sauvegardé hors ligne
+          </div>
+          <p className="text-xs">Il sera automatiquement envoyé dès que vous serez connecté à internet.</p>
         </div>
+      )}
 
-        {/* Spécialité */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Spécialité médicale
-          </label>
-          <select
-            {...register("specialty")}
-            className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          >
-            <option value="">-- Sélectionner une spécialité --</option>
-            {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 text-sm">❌ {error}</div>
+      )}
 
-        {/* Produits suggérés */}
-        {suggestedProducts.length > 0 && (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
+
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">
-              Produits à présenter — {specialty}
-              <span className="text-xs text-gray-400 ml-2">
-                ({selectedProds.length} sélectionné(s))
-              </span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {suggestedProducts.map((prod) => (
-                <button
-                  type="button"
-                  key={prod}
-                  onClick={() => toggleProduct(prod)}
-                  className={`text-xs px-3 py-1.5 rounded-full border-2 transition font-semibold
-                    ${selectedProds.includes(prod)
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Médecin visité *</label>
+            <input value={form.doctorName} onChange={(e) => setForm((f) => ({ ...f, doctorName: e.target.value }))}
+              className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="Dr. Nom Prénom" required />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Spécialité</label>
+            <select value={form.specialty} onChange={(e) => setForm((f) => ({ ...f, specialty: e.target.value }))}
+              className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">Sélectionner une spécialité</option>
+              {SPECIALITES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Pharmacie</label>
+            <select value={form.pharmacyId} onChange={(e) => setForm((f) => ({ ...f, pharmacyId: e.target.value }))}
+              className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">Sélectionner une pharmacie (optionnel)</option>
+              {(pharmacies as any[]).slice(0, 200).map((p: any) => (
+                <option key={p.id} value={p.id}>{p.nom}{p.ville ? ` — ${p.ville}` : ""}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Produits présentés</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {(products as any[]).filter((p: any) => p.isActive).map((p: any) => (
+                <button key={p.id} type="button"
+                  onClick={() => {
+                    const current = form.productsShown ? form.productsShown.split(",").map((s) => s.trim()) : [];
+                    const idx     = current.indexOf(p.name);
+                    if (idx === -1) {
+                      setForm((f) => ({ ...f, productsShown: [...current, p.name].join(", ") }));
+                    } else {
+                      current.splice(idx, 1);
+                      setForm((f) => ({ ...f, productsShown: current.join(", ") }));
+                    }
+                  }}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition
+                    ${form.productsShown?.includes(p.name)
                       ? "bg-blue-600 text-white border-blue-600"
                       : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
                     }`}
                 >
-                  {prod}
+                  {p.name}
                 </button>
               ))}
             </div>
           </div>
-        )}
 
-        {/* Notes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Notes de visite *
-          </label>
-          <textarea
-            {...register("notes", { required: true })}
-            rows={6}
-            className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-            placeholder="Décrivez la visite : retours du médecin, produits discutés, objections, prochaines actions..."
-          />
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Notes de visite *</label>
+            <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              rows={5} placeholder="Décrivez le déroulement de la visite, les sujets abordés, les retours du médecin..." required />
+          </div>
+
+          {/* Résumé IA */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-600">Résumé IA (Gemini)</label>
+              <button type="button" onClick={generateAI} disabled={generating || !form.notes}
+                className="flex items-center gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-60">
+                <Sparkles size={12} />
+                {generating ? "Génération..." : "Générer"}
+              </button>
+            </div>
+            {aiSummary && (
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-sm text-purple-800 leading-relaxed">
+                {aiSummary}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Bouton Gemini */}
-        <button
-          type="button"
-          onClick={summarizeWithGemini}
-          disabled={loadingAI || !notes?.trim()}
-          className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 text-purple-700
-                     border border-purple-200 rounded-xl hover:bg-purple-100 transition
-                     text-sm font-medium w-full justify-center disabled:opacity-50"
-        >
-          {loadingAI
-            ? <><Loader size={15} className="animate-spin" /> Génération en cours...</>
-            : <><Sparkles size={15} /> Résumer avec Gemini AI</>
-          }
+        <button type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-2xl transition shadow-lg active:scale-95 flex items-center justify-center gap-2">
+          <FileText size={18} />
+          {isOnline() ? "Soumettre le rapport" : "Sauvegarder hors ligne"}
         </button>
-
-        {/* Résumé IA */}
-        {aiSummary && (
-          <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
-            <p className="text-xs font-bold text-purple-600 mb-2 flex items-center gap-1">
-              <Sparkles size={12} /> Résumé IA (Gemini)
-            </p>
-            <p className="text-sm text-gray-700 leading-relaxed">{aiSummary}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Enregistrer */}
-      <button
-        type="submit"
-        disabled={submitReport.isPending}
-        className="w-full py-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white
-                   rounded-2xl font-bold text-base flex items-center justify-center gap-2
-                   transition disabled:opacity-60 shadow-lg"
-      >
-        <Save size={18} />
-        {submitReport.isPending ? "Enregistrement..." : "Enregistrer le rapport"}
-      </button>
-    </form>
+      </form>
+    </div>
   );
 }
