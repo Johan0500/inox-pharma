@@ -3,7 +3,7 @@ import { useAuth }             from "../../contexts/AuthContext";
 import {
   MapPin, FileText, Calendar, Package,
   LogOut, MessageCircle, Target, LayoutDashboard,
-  History, BarChart3, User, Menu, X, Bell,
+  History, BarChart3, User, Lock,
 } from "lucide-react";
 import { useQuery }      from "@tanstack/react-query";
 import api               from "../../services/api";
@@ -17,9 +17,9 @@ import MyMessages     from "./MyMessages";
 import MyObjectives   from "./MyObjectives";
 import MyDashboard    from "./MyDashboard";
 import MyVisitHistory from "./MyVisitHistory";
-import MyGPSHistory   from "./MyGPSHistory";
 import MyStats        from "./MyStats";
 import MyProfile      from "./MyProfile";
+import ChangePasswordModal from "../shared/ChangePasswordModal";
 
 const TABS = [
   { id: "dashboard",  label: "Accueil",    icon: LayoutDashboard },
@@ -34,11 +34,15 @@ const TABS = [
   { id: "profile",    label: "Profil",     icon: User            },
 ];
 
+const LAB_COLOR = "#065f46";
+
 export default function DelegateView() {
   const { user, logout } = useAuth();
   const [tab,        setTab]        = useState("dashboard");
   const [syncMsg,    setSyncMsg]    = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed,  setCollapsed]  = useState(false);
+  const [showPwd,    setShowPwd]    = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey:        ["unread-count"],
@@ -56,195 +60,345 @@ export default function DelegateView() {
     return cleanup;
   }, []);
 
-  const handleTabChange = (id: string) => {
+  const handleTab = (id: string) => {
     setTab(id);
-    setSidebarOpen(false);
+    setMobileOpen(false);
   };
 
-  const currentTab = TABS.find((t) => t.id === tab);
+  const renderTab = () => {
+    switch (tab) {
+      case "dashboard":  return <MyDashboard    />;
+      case "gps":        return <GeoTracker     />;
+      case "report":     return <VisitReport    />;
+      case "planning":   return <MyPlanning     />;
+      case "history":    return <MyVisitHistory />;
+      case "messages":   return <MyMessages     />;
+      case "objectives": return <MyObjectives   />;
+      case "stats":      return <MyStats        />;
+      case "products":   return <MyProducts     />;
+      case "profile":    return <MyProfile      />;
+      default:           return <MyDashboard    />;
+    }
+  };
+
+  const currentLabel = TABS.find((t) => t.id === tab)?.label || "Accueil";
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div style={{ display:"flex", height:"100vh", background:"#f0fdf4", overflow:"hidden", fontFamily:"system-ui, sans-serif" }}>
 
       {/* ── Overlay mobile ───────────────────────────────── */}
-      {sidebarOpen && (
+      {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
+            zIndex:40, display:"block",
+          }}
+          className="lg:hidden"
         />
       )}
 
       {/* ── Sidebar ──────────────────────────────────────── */}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50
-        w-64 flex flex-col
-        bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900
-        shadow-2xl transition-transform duration-300
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}>
+      <aside style={{
+        width: collapsed ? 64 : 256,
+        transition: "width 0.3s ease",
+        background: `linear-gradient(180deg, ${LAB_COLOR} 0%, ${LAB_COLOR}ee 100%)`,
+        display: "flex", flexDirection: "column",
+        boxShadow: "4px 0 30px rgba(0,0,0,0.15)",
+        flexShrink: 0, position: "relative",
+        // Mobile : caché par défaut
+        transform: mobileOpen ? "translateX(0)" : undefined,
+      }}
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}
+      >
+        {/* Bouton collapse (PC uniquement) */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          style={{
+            position:"absolute", right:-12, top:24,
+            width:24, height:24, borderRadius:"50%",
+            background:"white", border:`2px solid ${LAB_COLOR}`,
+            color:LAB_COLOR, cursor:"pointer",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            boxShadow:"0 2px 8px rgba(0,0,0,0.15)", zIndex:10,
+            fontSize:12,
+          }}
+          className="hidden lg:flex"
+        >
+          {collapsed ? "›" : "‹"}
+        </button>
+
         {/* Logo */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-700/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/30">
-              <span className="text-lg">🏥</span>
+        <div style={{ padding:"20px 16px", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{
+              width:40, height:40, borderRadius:12, flexShrink:0,
+              background:"rgba(255,255,255,0.2)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              boxShadow:"0 4px 12px rgba(0,0,0,0.15)",
+            }}>
+              <span style={{ fontSize:20 }}>🏥</span>
             </div>
-            <div>
-              <h1 className="font-bold text-white text-sm tracking-wide">INOX PHARMA</h1>
-              <p className="text-slate-400 text-xs">Délégué médical</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-slate-400 hover:text-white p-1"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Profil utilisateur */}
-        <div className="px-4 py-4 border-b border-slate-700/50">
-          <div className="flex items-center gap-3 bg-slate-700/30 rounded-xl px-3 py-2.5">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </div>
-            <div className="min-w-0">
-              <p className="text-white text-xs font-semibold truncate">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-slate-400 text-xs truncate">
-                {(user as any)?.delegate?.zone || "Délégué"}
-              </p>
-            </div>
+            {!collapsed && (
+              <div style={{ overflow:"hidden" }}>
+                <p style={{ color:"white", fontFamily:"Georgia, serif", fontSize:14, fontWeight:700, margin:0, letterSpacing:1 }}>
+                  INOX PHARMA
+                </p>
+                <p style={{ color:"rgba(255,255,255,0.65)", fontSize:10, margin:0, letterSpacing:1 }}>
+                  DÉLÉGUÉ MÉDICAL
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => handleTabChange(id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm relative group
-                ${tab === id
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25 font-semibold"
-                  : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
-                }`}
-            >
-              <Icon size={17} className="flex-shrink-0" />
-              <span>{label}</span>
-              {id === "messages" && (unreadCount as number) > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {(unreadCount as number) > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-              {tab === id && (
-                <span className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />
-              )}
-            </button>
-          ))}
-        </nav>
-
-        {/* Déconnexion */}
-        <div className="px-3 py-3 border-t border-slate-700/50">
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition text-sm"
-          >
-            <LogOut size={17} />
-            <span>Déconnexion</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* ── Zone principale ───────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* Header top */}
-        <header className="flex-shrink-0 bg-white border-b border-slate-200 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            {/* Burger mobile */}
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-slate-500 hover:text-slate-800 p-1"
-            >
-              <Menu size={22} />
-            </button>
-            <div>
-              <h2 className="font-bold text-slate-800 text-base">
-                {currentTab?.label}
-              </h2>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-              </p>
+        {/* Profil délégué */}
+        {!collapsed && (
+          <div style={{ padding:"12px 16px", borderBottom:"1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{
+              display:"flex", alignItems:"center", gap:10,
+              background:"rgba(255,255,255,0.1)", borderRadius:10,
+              padding:"8px 10px",
+            }}>
+              <div style={{
+                width:32, height:32, borderRadius:"50%", flexShrink:0,
+                background:"rgba(255,255,255,0.25)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color:"white", fontSize:13, fontWeight:700,
+              }}>
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </div>
+              <div style={{ overflow:"hidden" }}>
+                <p style={{ color:"white", fontSize:12, fontWeight:600, margin:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p style={{ color:"rgba(255,255,255,0.6)", fontSize:10, margin:0 }}>
+                  {(user as any)?.delegate?.zone || "Délégué"}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Badge notifications */}
-            <button
-              onClick={() => handleTabChange("messages")}
-              className="relative p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
-            >
-              <Bell size={20} />
-              {(unreadCount as number) > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-              )}
-            </button>
-            {/* Avatar */}
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </div>
-          </div>
-        </header>
-
-        {/* Bannière sync */}
-        {syncMsg && (
-          <div className="bg-green-500 text-white text-center text-xs py-2 font-medium flex-shrink-0">
-            {syncMsg}
           </div>
         )}
 
-        {/* Contenu principal */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 lg:p-6 max-w-6xl mx-auto">
-            <div style={{ display: tab === "dashboard"  ? "block" : "none" }}><MyDashboard    /></div>
-            <div style={{ display: tab === "gps"        ? "block" : "none" }}><GeoTracker     /></div>
-            <div style={{ display: tab === "report"     ? "block" : "none" }}><VisitReport    /></div>
-            <div style={{ display: tab === "planning"   ? "block" : "none" }}><MyPlanning     /></div>
-            <div style={{ display: tab === "history"    ? "block" : "none" }}><MyVisitHistory /></div>
-            <div style={{ display: tab === "messages"   ? "block" : "none" }}><MyMessages     /></div>
-            <div style={{ display: tab === "objectives" ? "block" : "none" }}><MyObjectives   /></div>
-            <div style={{ display: tab === "stats"      ? "block" : "none" }}><MyStats        /></div>
-            <div style={{ display: tab === "products"   ? "block" : "none" }}><MyProducts     /></div>
-            <div style={{ display: tab === "profile"    ? "block" : "none" }}><MyProfile      /></div>
-          </div>
-        </main>
-
-        {/* ── Navigation bas — mobile uniquement ───────────── */}
-        <nav className="lg:hidden flex-shrink-0 bg-white border-t border-slate-200 shadow-lg overflow-x-auto">
-          <div className="flex min-w-max px-1">
-            {TABS.map(({ id, label, icon: Icon }) => (
+        {/* Navigation */}
+        <nav style={{ flex:1, padding:"8px", overflowY:"auto" }}>
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const isActive = tab === id;
+            return (
               <button
                 key={id}
-                onClick={() => handleTabChange(id)}
-                className={`flex flex-col items-center py-2 px-3 gap-0.5 text-xs transition min-w-[60px] relative
-                  ${tab === id ? "text-blue-600 font-semibold" : "text-gray-400 hover:text-gray-600"}`}
+                onClick={() => handleTab(id)}
+                title={collapsed ? label : undefined}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center",
+                  gap:12, padding: collapsed ? "10px" : "10px 12px",
+                  borderRadius:12, border:"none", cursor:"pointer",
+                  marginBottom:2, position:"relative",
+                  justifyContent: collapsed ? "center" : "flex-start",
+                  background: isActive ? "rgba(255,255,255,0.2)" : "transparent",
+                  color: isActive ? "white" : "rgba(255,255,255,0.6)",
+                  fontWeight: isActive ? 600 : 400,
+                  fontSize:13,
+                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                  transition:"all 0.15s",
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
-                <div className="relative">
-                  <Icon size={20} />
+                <div style={{ position:"relative", flexShrink:0 }}>
+                  <Icon size={17} />
                   {id === "messages" && (unreadCount as number) > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">
+                    <span style={{
+                      position:"absolute", top:-4, right:-4,
+                      background:"#ef4444", color:"white",
+                      fontSize:9, fontWeight:700, borderRadius:"50%",
+                      width:14, height:14, display:"flex",
+                      alignItems:"center", justifyContent:"center",
+                    }}>
                       {(unreadCount as number) > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </div>
-                <span className="leading-none">{label}</span>
-                {tab === id && <span className="w-1 h-1 bg-blue-600 rounded-full" />}
+                {!collapsed && <span>{label}</span>}
+                {isActive && !collapsed && (
+                  <div style={{
+                    position:"absolute", right:0, top:"50%",
+                    transform:"translateY(-50%)",
+                    width:3, height:20, borderRadius:2,
+                    background:"rgba(255,255,255,0.8)",
+                  }}/>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bas sidebar */}
+        <div style={{ padding:"12px 16px", borderTop:"1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            <button onClick={() => setShowPwd(true)} style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"transparent", border:"none",
+              color:"rgba(255,255,255,0.65)", cursor:"pointer",
+              padding:"8px 10px", borderRadius:10, fontSize:12,
+              justifyContent: collapsed ? "center" : "flex-start",
+            }}
+              title={collapsed ? "Changer mot de passe" : undefined}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "white"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
+            >
+              <Lock size={14} />
+              {!collapsed && "Changer mot de passe"}
+            </button>
+
+            <button onClick={logout} style={{
+              display:"flex", alignItems:"center", gap:8,
+              background:"transparent", border:"none",
+              color:"rgba(255,100,100,0.8)", cursor:"pointer",
+              padding:"8px 10px", borderRadius:10, fontSize:12,
+              justifyContent: collapsed ? "center" : "flex-start",
+            }}
+              title={collapsed ? "Déconnexion" : undefined}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,100,100,0.15)"; e.currentTarget.style.color = "#fca5a5"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,100,100,0.8)"; }}
+            >
+              <LogOut size={14} />
+              {!collapsed && "Déconnexion"}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Zone principale ───────────────────────────────── */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+        {/* Header */}
+        <div style={{
+          background:"white",
+          borderBottom:"1px solid #d1fae5",
+          padding:"14px 24px",
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
+          flexShrink:0,
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            {/* Burger mobile */}
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="lg:hidden"
+              style={{
+                background:"transparent", border:"none", cursor:"pointer",
+                color:"#064e3b", padding:4,
+              }}
+            >
+              ☰
+            </button>
+            <div>
+              <h2 style={{ color:"#064e3b", fontSize:17, fontWeight:700, margin:0, fontFamily:"Georgia, serif" }}>
+                {currentLabel}
+              </h2>
+              <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>
+                {new Date().toLocaleDateString("fr-FR", { weekday:"long", day:"2-digit", month:"long", year:"numeric" })}
+              </p>
+            </div>
+          </div>
+
+          {/* Badge messages */}
+          <button
+            onClick={() => handleTab("messages")}
+            style={{
+              position:"relative", background:"#f0fdf4",
+              border:"1px solid #d1fae5", borderRadius:10,
+              padding:"6px 12px", cursor:"pointer",
+              color:LAB_COLOR, fontSize:12, fontWeight:600,
+              display:"flex", alignItems:"center", gap:6,
+            }}
+          >
+            <MessageCircle size={15} />
+            Messages
+            {(unreadCount as number) > 0 && (
+              <span style={{
+                background:"#ef4444", color:"white",
+                fontSize:10, fontWeight:700, borderRadius:"50%",
+                width:18, height:18, display:"flex",
+                alignItems:"center", justifyContent:"center",
+              }}>
+                {(unreadCount as number) > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Bannière sync */}
+        {syncMsg && (
+          <div style={{
+            background:"#10b981", color:"white",
+            textAlign:"center", fontSize:12,
+            padding:"8px", fontWeight:500, flexShrink:0,
+          }}>
+            {syncMsg}
+          </div>
+        )}
+
+        {/* Contenu */}
+        <main style={{ flex:1, overflowY:"auto", background:"#f0fdf4" }}>
+          <div style={{ padding:24, maxWidth:1200, margin:"0 auto" }}>
+            {renderTab()}
+          </div>
+        </main>
+
+        {/* ── Navigation bas mobile uniquement ─────────────── */}
+        <nav
+          className="lg:hidden"
+          style={{
+            background:"white", borderTop:"1px solid #e5e7eb",
+            boxShadow:"0 -2px 10px rgba(0,0,0,0.06)",
+            overflowX:"auto", flexShrink:0,
+          }}
+        >
+          <div style={{ display:"flex", minWidth:"max-content", padding:"0 4px" }}>
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => handleTab(id)}
+                style={{
+                  display:"flex", flexDirection:"column", alignItems:"center",
+                  padding:"8px 12px", gap:2, fontSize:11, minWidth:60,
+                  background:"transparent", border:"none", cursor:"pointer",
+                  color: tab === id ? LAB_COLOR : "#9ca3af",
+                  fontWeight: tab === id ? 600 : 400,
+                  transition:"color 0.15s",
+                  position:"relative",
+                }}
+              >
+                <div style={{ position:"relative" }}>
+                  <Icon size={20} />
+                  {id === "messages" && (unreadCount as number) > 0 && (
+                    <span style={{
+                      position:"absolute", top:-4, right:-4,
+                      background:"#ef4444", color:"white",
+                      fontSize:9, fontWeight:700, borderRadius:"50%",
+                      width:14, height:14, display:"flex",
+                      alignItems:"center", justifyContent:"center",
+                    }}>
+                      {(unreadCount as number) > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span>{label}</span>
+                {tab === id && (
+                  <span style={{ width:4, height:4, background:LAB_COLOR, borderRadius:"50%" }} />
+                )}
               </button>
             ))}
           </div>
         </nav>
       </div>
+
+      {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
     </div>
   );
 }
