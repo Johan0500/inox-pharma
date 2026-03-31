@@ -13,10 +13,33 @@ export interface SyncResult {
   failed: number;
 }
 
+// ── État de connexion ────────────────────────────────────────
+
+export function isOnline(): boolean {
+  return navigator.onLine;
+}
+
+// ── Écouter les changements de connexion ─────────────────────
+
+export function onConnectionChange(
+  callback: (online: boolean) => void,
+): () => void {
+  const handleOnline  = () => callback(true);
+  const handleOffline = () => callback(false);
+
+  window.addEventListener("online",  handleOnline);
+  window.addEventListener("offline", handleOffline);
+
+  return () => {
+    window.removeEventListener("online",  handleOnline);
+    window.removeEventListener("offline", handleOffline);
+  };
+}
+
 // ── Sauvegarder un rapport hors ligne ────────────────────────
 
-export function saveOfflineReport(payload: any): void {
-  const existing = getOfflineReports();
+export function saveReportOffline(payload: any): void {
+  const existing = getOfflineReportsSync();
   const report: OfflineReport = {
     id:        `offline_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     payload,
@@ -26,9 +49,9 @@ export function saveOfflineReport(payload: any): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 }
 
-// ── Récupérer les rapports en attente ────────────────────────
+// ── Lecture synchrone (usage interne) ───────────────────────
 
-export function getOfflineReports(): OfflineReport[] {
+function getOfflineReportsSync(): OfflineReport[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -37,24 +60,30 @@ export function getOfflineReports(): OfflineReport[] {
   }
 }
 
+// ── Récupérer les rapports en attente (async pour OfflineIndicator) ──
+
+export async function getPendingReports(): Promise<OfflineReport[]> {
+  return getOfflineReportsSync();
+}
+
 // ── Supprimer un rapport synchronisé ────────────────────────
 
-function removeOfflineReport(id: string): void {
-  const updated = getOfflineReports().filter((r) => r.id !== id);
+function removeReport(id: string): void {
+  const updated = getOfflineReportsSync().filter((r) => r.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
-// ── Synchroniser les rapports hors ligne ────────────────────
+// ── Synchroniser les rapports en attente ────────────────────
 
-export async function syncOfflineReports(): Promise<SyncResult> {
-  const reports = getOfflineReports();
+export async function syncPendingReports(): Promise<SyncResult> {
+  const reports = getOfflineReportsSync();
   let synced = 0;
   let failed = 0;
 
   for (const report of reports) {
     try {
       await api.post("/visit-reports", report.payload);
-      removeOfflineReport(report.id);
+      removeReport(report.id);
       synced++;
     } catch {
       failed++;
@@ -64,29 +93,24 @@ export async function syncOfflineReports(): Promise<SyncResult> {
   return { synced, failed };
 }
 
-// ── Sync automatique (appelé au montage du composant) ────────
+// ── Sync automatique (appelé dans DelegateView) ──────────────
 
 export function setupAutoSync(
   onResult?: (result: SyncResult) => void,
 ): () => void {
-  // Sync immédiate au montage si en ligne
-  if (navigator.onLine && getOfflineReports().length > 0) {
-    syncOfflineReports().then((result) => {
+  // Sync immédiate au montage si en ligne et rapports en attente
+  if (isOnline() && getOfflineReportsSync().length > 0) {
+    syncPendingReports().then((result) => {
       if (onResult) onResult(result);
     });
   }
 
-  // Sync quand la connexion revient
-  const handleOnline = async () => {
-    if (getOfflineReports().length === 0) return;
-    const result = await syncOfflineReports();
+  // Sync automatique quand la connexion revient
+  const cleanup = onConnectionChange(async (nowOnline) => {
+    if (!nowOnline || getOfflineReportsSync().length === 0) return;
+    const result = await syncPendingReports();
     if (onResult) onResult(result);
-  };
+  });
 
-  window.addEventListener("online", handleOnline);
-
-  // Retourne la fonction de cleanup pour useEffect
-  return () => {
-    window.removeEventListener("online", handleOnline);
-  };
+  return cleanup;
 }
