@@ -4,7 +4,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64  = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  // ✅ Fix: cast explicite pour éviter l'erreur Uint8Array<ArrayBufferLike>
+  return new Uint8Array([...rawData].map((c) => c.charCodeAt(0)));
 }
 
 export async function registerPushNotifications(): Promise<boolean> {
@@ -14,22 +15,19 @@ export async function registerPushNotifications(): Promise<boolean> {
       return false;
     }
 
-    // Enregistrer le Service Worker
     const registration = await navigator.serviceWorker.register("/sw.js");
     console.log("✅ Service Worker enregistré");
 
-    // Demander la permission
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
       console.log("Permission refusée");
       return false;
     }
 
-    // Récupérer la clé VAPID
     const { data } = await api.get("/notifications/vapid-key");
-    const applicationServerKey = urlBase64ToUint8Array(data.publicKey);
+    // ✅ Fix: cast en ArrayBuffer pour satisfaire le type applicationServerKey
+    const applicationServerKey = urlBase64ToUint8Array(data.publicKey).buffer as ArrayBuffer;
 
-    // Créer l'abonnement
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey,
@@ -37,7 +35,6 @@ export async function registerPushNotifications(): Promise<boolean> {
 
     const subJson = subscription.toJSON();
 
-    // Envoyer au backend
     await api.post("/notifications/subscribe", {
       endpoint: subJson.endpoint,
       p256dh:   subJson.keys?.p256dh,

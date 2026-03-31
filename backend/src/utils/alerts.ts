@@ -6,29 +6,26 @@ const prisma = new PrismaClient();
 
 export async function checkInactiveDelegates() {
   try {
-    const DAYS_THRESHOLD = 3; // Alerte après 3 jours sans rapport
+    const DAYS_THRESHOLD = 3;
     const thresholdDate  = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - DAYS_THRESHOLD);
 
     const delegates = await prisma.delegate.findMany({
       include: {
-        user:      { select: { firstName: true, lastName: true } },
-        visitReports: {
-          orderBy: { visitDate: "desc" },
-          take:    1,
-        },
+        user:         { select: { firstName: true, lastName: true } },
+        visitReports: { orderBy: { visitDate: "desc" }, take: 1 },
       },
     });
 
     const superAdmins = await prisma.user.findMany({
-      where: { role: "SUPER_ADMIN", isActive: true },
+      where:  { role: "SUPER_ADMIN", isActive: true },
       select: { email: true },
     });
 
     for (const d of delegates) {
-      const lastReport    = d.visitReports[0];
+      const lastReport     = d.visitReports[0];
       const lastReportDate = lastReport ? new Date(lastReport.visitDate) : null;
-      const isInactive    = !lastReportDate || lastReportDate < thresholdDate;
+      const isInactive     = !lastReportDate || lastReportDate < thresholdDate;
 
       if (isInactive) {
         const daysSince = lastReportDate
@@ -40,20 +37,22 @@ export async function checkInactiveDelegates() {
           ? lastReportDate.toLocaleDateString("fr-FR")
           : null;
 
-        // Envoyer email aux super admins
-        for (const admin of superAdmins) {
-          await sendEmail(
-            admin.email,
-            `⚠️ Délégué inactif : ${delegateName}`,
-            alertInactiveDelegateEmail(delegateName, d.zone, lastDateStr, daysSince)
-          );
-        }
+        // Emails aux super admins
+        await Promise.allSettled(
+          superAdmins.map((admin) =>
+            sendEmail(
+              admin.email,
+              `⚠️ Délégué inactif : ${delegateName}`,
+              alertInactiveDelegateEmail(delegateName, d.zone, lastDateStr, daysSince),
+            ),
+          ),
+        );
 
-        // Notification push aux admins
+        // Notification push
         await notifyAdmins(
           "⚠️ Délégué inactif",
           `${delegateName} (${d.zone}) n'a pas soumis de rapport depuis ${daysSince} jour(s)`,
-          "/dashboard"
+          "/dashboard",
         );
 
         console.log(`🔔 Alerte envoyée pour ${delegateName} — inactif depuis ${daysSince} jours`);

@@ -10,23 +10,34 @@ import {
 import { useQuery }   from "@tanstack/react-query";
 import api            from "../../services/api";
 
-import OverviewTab        from "./tabs/OverviewTab";
-import GPSMapTab          from "./tabs/GPSMapTab";
-import DelegatesTab       from "./tabs/DelegatesTab";
-import PharmaciesTab      from "./tabs/PharmaciesTab";
-import PharmaciesMapTab   from "./tabs/PharmaciesMapTab";
-import PlanningTab        from "./tabs/PlanningTab";
-import ReportsTab         from "./tabs/ReportsTab";
-import ProductsTab        from "./tabs/ProductsTab";
-import StatsTab           from "./tabs/StatsTab";
-import UsersTab           from "./tabs/UsersTab";
-import ChiffresTab        from "./tabs/ChiffresTab";
-import StatsChiffresTab   from "./tabs/StatsChiffresTab";
-import MessagesTab        from "./tabs/MessagesTab";
-import LoginHistoryTab    from "./tabs/LoginHistoryTab";
-import ObjectivesTab      from "./tabs/ObjectivesTab";
-import ChangePasswordModal from "../shared/ChangePasswordModal";
+import OverviewTab            from "./tabs/OverviewTab";
+import GPSMapTab              from "./tabs/GPSMapTab";
+import DelegatesTab           from "./tabs/DelegatesTab";
+import PharmaciesTab          from "./tabs/PharmaciesTab";
+import PlanningTab            from "./tabs/PlanningTab";
+import ReportsTab             from "./tabs/ReportsTab";
+import ProductsTab            from "./tabs/ProductsTab";
+import StatsTab               from "./tabs/StatsTab";
+import UsersTab               from "./tabs/UsersTab";
+import ChiffresTab            from "./tabs/ChiffresTab";
+import StatsChiffresTab       from "./tabs/StatsChiffresTab";
+import MessagesTab            from "./tabs/MessagesTab";
+import LoginHistoryTab        from "./tabs/LoginHistoryTab";
+import ObjectivesTab          from "./tabs/ObjectivesTab";
+import ChangePasswordModal    from "../shared/ChangePasswordModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
+
+// ── Carte Pharmacies (inline fallback si le fichier n'existe pas encore) ──
+let PharmaciesMapTab: React.ComponentType;
+try {
+  PharmaciesMapTab = require("./tabs/PharmaciesMapTab").default;
+} catch {
+  PharmaciesMapTab = () => (
+    <div className="bg-white rounded-2xl p-12 text-center text-gray-400">
+      Carte des pharmacies — bientôt disponible
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { user, logout }          = useAuth();
@@ -34,7 +45,6 @@ export default function AdminDashboard() {
   const [collapsed, setCollapsed] = useState(false);
   const [showPwd,   setShowPwd]   = useState(false);
 
-  // Badge messages non lus
   const { data: unreadCount = 0 } = useQuery({
     queryKey:        ["unread-count-admin"],
     queryFn:         () => api.get("/messages/unread/count").then((r) => r.data.count),
@@ -42,22 +52,21 @@ export default function AdminDashboard() {
   });
 
   const TABS = [
-    { id: "overview",       label: "Accueil",          icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pharmacies-map", label: "Carte Pharmacies", icon: MapPin, roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "planning",       label: "Planning",         icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "reports",        label: "Rapports",         icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "products",       label: "Produits",         icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "chiffres",       label: "Chiffres",         icon: DollarSign,      roles: ["ADMIN"]               },
-    { id: "stats-chiffres", label: "Stats Chiffres",   icon: TrendingUp,      roles: ["SUPER_ADMIN"]         },
-    { id: "objectives",     label: "Objectifs",        icon: Target,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "stats",          label: "Statistiques",     icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "overview",       label: "Accueil",          icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "planning",       label: "Planning",         icon: Calendar,        roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "reports",        label: "Rapports",         icon: FileText,        roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "products",       label: "Produits",         icon: Package,         roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "chiffres",       label: "Chiffres",         icon: DollarSign,      roles: ["ADMIN"]                },
+    { id: "stats-chiffres", label: "Stats Chiffres",   icon: TrendingUp,      roles: ["SUPER_ADMIN"]          },
+    { id: "objectives",     label: "Objectifs",        icon: Target,          roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "stats",          label: "Statistiques",     icon: BarChart3,       roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN", "ADMIN"] },
+    { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN", "ADMIN"] },
   ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
@@ -77,7 +86,6 @@ export default function AdminDashboard() {
       case "messages":       return <MessagesTab />;
       case "history":        return <LoginHistoryTab />;
       case "users":          return <UsersTab />;
-      case "pharmacies-map": return <PharmaciesMapTab />;
       default:               return <OverviewTab />;
     }
   };
@@ -90,7 +98,6 @@ export default function AdminDashboard() {
                         bg-gradient-to-b from-slate-900 to-slate-800
                         flex flex-col shadow-xl flex-shrink-0 relative`}>
 
-        {/* Bouton collapse */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="absolute -right-3 top-6 bg-blue-600 text-white rounded-full p-0.5 shadow-md hover:bg-blue-700 transition z-10"
@@ -98,7 +105,6 @@ export default function AdminDashboard() {
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        {/* Logo */}
         <div className={`p-4 border-b border-slate-700 ${collapsed ? "flex justify-center" : ""}`}>
           <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
             <span className="text-2xl flex-shrink-0">🏥</span>
@@ -113,14 +119,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Notifications push */}
         {!collapsed && (
           <div className="px-3 py-2 border-b border-slate-700">
             <PushNotificationToggle />
           </div>
         )}
 
-        {/* Navigation */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
@@ -147,7 +151,6 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        {/* Utilisateur + actions */}
         <div className={`p-3 border-t border-slate-700 space-y-1 ${collapsed ? "flex flex-col items-center" : ""}`}>
           {!collapsed && (
             <div className="mb-2 px-1">
@@ -185,7 +188,6 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* Modal changement mot de passe */}
       {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
     </div>
   );
