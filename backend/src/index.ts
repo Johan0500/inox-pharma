@@ -6,23 +6,24 @@ import dotenv           from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import bcrypt           from "bcryptjs";
 
-import authRoutes        from "./routes/auth";
-import userRoutes        from "./routes/users";
-import delegateRoutes    from "./routes/delegates";
-import reportRoutes      from "./routes/reports";
-import gpsRoutes         from "./routes/gps";
-import grossisteRoutes   from "./routes/grossistes";
-import labRoutes         from "./routes/laboratories";
-import pharmacyRoutes    from "./routes/pharmacies";
-import productRoutes     from "./routes/products";
-import planningRoutes    from "./routes/planning";
-import statsRoutes       from "./routes/stats";
-import sectorRoutes      from "./routes/sectors";
-import salesReportRoutes from "./routes/salesReports";
-import messageRoutes     from "./routes/messages";
-import { setupGPSSocket } from "./socket/gpsSocket";
+import authRoutes         from "./routes/auth";
+import userRoutes         from "./routes/users";
+import delegateRoutes     from "./routes/delegates";
+import reportRoutes       from "./routes/reports";
+import gpsRoutes          from "./routes/gps";
+import grossisteRoutes    from "./routes/grossistes";
+import labRoutes          from "./routes/laboratories";
+import pharmacyRoutes     from "./routes/pharmacies";
+import productRoutes      from "./routes/products";
+import planningRoutes     from "./routes/planning";
+import statsRoutes        from "./routes/stats";
+import sectorRoutes       from "./routes/sectors";
+import salesReportRoutes  from "./routes/salesReports";
+import messageRoutes      from "./routes/messages";
 import notificationRoutes from "./routes/notifications";
 import objectiveRoutes    from "./routes/objectives";
+import strategieRoutes    from "./routes/strategies";
+import { setupGPSSocket } from "./socket/gpsSocket";
 import { checkInactiveDelegates } from "./utils/alerts";
 
 dotenv.config();
@@ -35,7 +36,7 @@ const httpServer = createServer(app);
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin",  "*");
   res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,PATCH,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, X-Lab");
   if (req.method === "OPTIONS") return res.status(200).json({});
   next();
 });
@@ -66,6 +67,7 @@ app.use("/api/sales-reports", salesReportRoutes);
 app.use("/api/messages",      messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/objectives",    objectiveRoutes);
+app.use("/api/strategies",    strategieRoutes);
 
 // ── Socket GPS + Messages ────────────────────────────────────
 setupGPSSocket(io);
@@ -103,6 +105,7 @@ app.get("/api/health", (req, res) => {
     status:  "ok",
     message: "INOX PHARMA API running",
     db:      "PostgreSQL (Supabase)",
+    labs:    ["lic-pharma", "croient"],
   });
 });
 
@@ -113,7 +116,16 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ INOX PHARMA Server → http://localhost:${PORT}`);
   console.log(`   Base de données  → PostgreSQL (Supabase)`);
   console.log(`   Frontend attendu → ${process.env.FRONTEND_URL}`);
+  console.log(`   Laboratoires     → lic-pharma | croient`);
+
+  // Init DB en arrière-plan
   initDb();
+
+  // Vérifier les délégués inactifs toutes les 24h
+  setInterval(() => { checkInactiveDelegates(); }, 24 * 60 * 60 * 1000);
+
+  // Première vérification 10 secondes après démarrage
+  setTimeout(() => { checkInactiveDelegates(); }, 10000);
 });
 
 // ── Init DB ──────────────────────────────────────────────────
@@ -121,44 +133,58 @@ async function initDb() {
   const prisma = new PrismaClient();
   try {
     const count = await prisma.user.count({ where: { role: "SUPER_ADMIN" } });
-    if (count > 0) { console.log("ℹ️ Base déjà initialisée"); return; }
+    if (count > 0) {
+      console.log("ℹ️ Base déjà initialisée");
+      return;
+    }
 
-    for (const name of ["lic-pharma","medisure","sigma","ephaco","stallion"])
+    // ── 2 laboratoires seulement ─────────────────────────────
+    for (const name of ["lic-pharma", "croient"]) {
       await prisma.laboratory.upsert({ where:{name}, update:{}, create:{name} });
-    for (const name of ["tedis","copharmed","laborex","dpci"])
+    }
+    console.log("✅ 2 laboratoires créés : lic-pharma + croient");
+
+    // ── 4 grossistes ─────────────────────────────────────────
+    for (const name of ["tedis","copharmed","laborex","dpci"]) {
       await prisma.grossiste.upsert({ where:{name}, update:{}, create:{name} });
+    }
+    console.log("✅ 4 grossistes créés");
 
+    // ── 26 produits ──────────────────────────────────────────
     const products = [
-      { name:"CROCIP-TZ",   group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"ACICROF-P",   group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"PIRRO",       group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"ROLIK",       group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"FEROXYDE",    group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"HEAMOCARE",   group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"CYPRONURAN",  group:"GROUPE 1", specialty:"CHIRURGIE" },
-      { name:"AZIENT",      group:"GROUPE 1", specialty:"NEPHROLOGIE" },
-      { name:"CROZOLE",     group:"GROUPE 1", specialty:"NEPHROLOGIE" },
-      { name:"BETAMECRO",   group:"GROUPE 2", specialty:"DERMATOLOGIE" },
-      { name:"BECLOZOLE",   group:"GROUPE 2", specialty:"DERMATOLOGIE" },
-      { name:"KEOZOL",      group:"GROUPE 2", specialty:"DERMATOLOGIE" },
-      { name:"MRITIZ",      group:"GROUPE 2", specialty:"DERMATOLOGIE" },
-      { name:"GLIZAR MR",   group:"GROUPE 2", specialty:"DIABETOLOGIE" },
-      { name:"CROFORMIN",   group:"GROUPE 2", specialty:"DIABETOLOGIE" },
-      { name:"PREGIB",      group:"GROUPE 2", specialty:"DIABETOLOGIE" },
-      { name:"CEXIME",      group:"GROUPE 3", specialty:"PEDIATRIE" },
-      { name:"CROCILLINE",  group:"GROUPE 3", specialty:"PEDIATRIE" },
-      { name:"GUAMEN",      group:"GROUPE 3", specialty:"PEDIATRIE" },
-      { name:"TERCO",       group:"GROUPE 3", specialty:"PEDIATRIE" },
-      { name:"CROLINI GEL", group:"GROUPE 3", specialty:"KINESIE" },
-      { name:"CETAFF",      group:"GROUPE 3", specialty:"KINESIE" },
-      { name:"COFEN",       group:"GROUPE 3", specialty:"KINESIE" },
-      { name:"DOLBUFEN",    group:"GROUPE 3", specialty:"KINESIE" },
-      { name:"ESOMECRO",    group:"GROUPE 4", specialty:"RHUMATOLOGIE NEURO TRAUMATO" },
-      { name:"CROGENTA",    group:"GROUPE 4", specialty:"OPHTALMOLOGIE" },
+      { name:"CROCIP-TZ",   group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"ACICROF-P",   group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"PIRRO",       group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"ROLIK",       group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"FEROXYDE",    group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"HEAMOCARE",   group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"CYPRONURAN",  group:"GROUPE 1", specialty:"CHIRURGIE"                     },
+      { name:"AZIENT",      group:"GROUPE 1", specialty:"NEPHROLOGIE"                   },
+      { name:"CROZOLE",     group:"GROUPE 1", specialty:"NEPHROLOGIE"                   },
+      { name:"BETAMECRO",   group:"GROUPE 2", specialty:"DERMATOLOGIE"                  },
+      { name:"BECLOZOLE",   group:"GROUPE 2", specialty:"DERMATOLOGIE"                  },
+      { name:"KEOZOL",      group:"GROUPE 2", specialty:"DERMATOLOGIE"                  },
+      { name:"MRITIZ",      group:"GROUPE 2", specialty:"DERMATOLOGIE"                  },
+      { name:"GLIZAR MR",   group:"GROUPE 2", specialty:"DIABETOLOGIE"                  },
+      { name:"CROFORMIN",   group:"GROUPE 2", specialty:"DIABETOLOGIE"                  },
+      { name:"PREGIB",      group:"GROUPE 2", specialty:"DIABETOLOGIE"                  },
+      { name:"CEXIME",      group:"GROUPE 3", specialty:"PEDIATRIE"                     },
+      { name:"CROCILLINE",  group:"GROUPE 3", specialty:"PEDIATRIE"                     },
+      { name:"GUAMEN",      group:"GROUPE 3", specialty:"PEDIATRIE"                     },
+      { name:"TERCO",       group:"GROUPE 3", specialty:"PEDIATRIE"                     },
+      { name:"CROLINI GEL", group:"GROUPE 3", specialty:"KINESIE"                       },
+      { name:"CETAFF",      group:"GROUPE 3", specialty:"KINESIE"                       },
+      { name:"COFEN",       group:"GROUPE 3", specialty:"KINESIE"                       },
+      { name:"DOLBUFEN",    group:"GROUPE 3", specialty:"KINESIE"                       },
+      { name:"ESOMECRO",    group:"GROUPE 4", specialty:"RHUMATOLOGIE NEURO TRAUMATO"   },
+      { name:"CROGENTA",    group:"GROUPE 4", specialty:"OPHTALMOLOGIE"                 },
     ];
-    for (const p of products)
+    for (const p of products) {
       await prisma.product.upsert({ where:{name:p.name}, update:{}, create:p });
+    }
+    console.log("✅ 26 produits créés");
 
+    // ── Super Admin ───────────────────────────────────────────
     const hash = await bcrypt.hash("Admin@2025!", 12);
     await prisma.user.create({
       data: {
@@ -167,16 +193,14 @@ async function initDb() {
         firstName: "Super",
         lastName:  "Admin",
         role:      "SUPER_ADMIN",
-      }
+      },
     });
-    console.log("✅ Base initialisée : admin@inoxpharma.com / Admin@2025!");
-  } catch(e) {
+    console.log("✅ Super Admin créé : admin@inoxpharma.com / Admin@2025!");
+    console.log("🎉 Base initialisée avec succès !");
+
+  } catch (e) {
     console.log("⚠️ Seed erreur:", e);
   } finally {
     await prisma.$disconnect();
   }
-  // Vérifier les délégués inactifs toutes les 24h
-setInterval(() => { checkInactiveDelegates(); }, 24 * 60 * 60 * 1000);
-// Première vérification au démarrage
-setTimeout(() => { checkInactiveDelegates(); }, 10000);
 }

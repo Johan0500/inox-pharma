@@ -29,6 +29,7 @@ model User {
   salesReports      SalesReport[]
   createdBy         User?              @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers      User[]             @relation("UserCreator")
+  strategies        Strategy[]
 }
 
 model ActiveSession {
@@ -81,6 +82,7 @@ model Laboratory {
   grossLabs    GrossisteLaboratory[]
   salesReports SalesReport[]
   reports      VisitReport[]
+  strategies   Strategy[]
 }
 
 model AdminLaboratory {
@@ -136,6 +138,8 @@ model Pharmacy {
   province     String?
   telephone    String?
   email        String?
+  latitude     Float?
+  longitude    Float?
   isActive     Boolean       @default(true)
   createdAt    DateTime      @default(now())
   grossiste    Grossiste?    @relation(fields: [grossisteId], references: [id])
@@ -214,8 +218,8 @@ model DelegateObjective {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   delegate         Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+
   @@unique([delegateId, month, year])
-  
 }
 
 model VisitReport {
@@ -301,4 +305,21 @@ enum DelegateStatus {
 enum SalesReportStatus {
   DRAFT
   SUBMITTED
+}
+
+model Strategy {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  targetProduct String?
+  targetZone    String?
+  startDate     DateTime?
+  endDate       DateTime?
+  laboratoryId  String
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
+  createdBy  User       @relation(fields: [createdById], references: [id])
 }

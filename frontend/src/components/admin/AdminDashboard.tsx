@@ -42,20 +42,14 @@ try {
 // ── Couleurs et noms par labo ────────────────────────────────
 const LAB_COLORS: Record<string, string> = {
   "lic-pharma": "#065f46",
-  "medisure":   "#1e40af",
-  "sigma":      "#7c2d12",
-  "ephaco":     "#6b21a8",
-  "stallion":   "#92400e",
+  "croient":    "#1e40af",
   "all":        "#064e3b",
 };
 
 const LAB_NAMES: Record<string, string> = {
   "lic-pharma": "LIC PHARMA",
-  "medisure":   "MEDISURE",
-  "sigma":      "SIGMA",
-  "ephaco":     "EPHACO",
-  "stallion":   "STALLION",
-  "all":        "TOUS LES LABOS",
+  "croient":    "CROIENT",
+  "all":        "VUE GLOBALE",
 };
 
 interface Props {
