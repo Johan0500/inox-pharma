@@ -5,7 +5,7 @@ import {
   Calendar, FileText, Package, BarChart3,
   Settings, LogOut, ChevronLeft, ChevronRight,
   TrendingUp, DollarSign, MessageCircle, Shield,
-  Lock, Target, Map, ArrowLeft,
+  Lock, Target, Map, ArrowLeft, Mail,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api          from "../../services/api";
@@ -26,18 +26,9 @@ import LoginHistoryTab        from "./tabs/LoginHistoryTab";
 import ObjectivesTab          from "./tabs/ObjectivesTab";
 import ChangePasswordModal    from "../shared/ChangePasswordModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
+import ReportConfigTab from "./tabs/ReportConfigTab";
+import PharmaciesMapTab from "./tabs/PharmaciesMapTab";
 
-// ── PharmaciesMapTab optionnel ───────────────────────────────
-let PharmaciesMapTab: React.ComponentType;
-try {
-  PharmaciesMapTab = require("./tabs/PharmaciesMapTab").default;
-} catch {
-  PharmaciesMapTab = () => (
-    <div style={{ background:"white", borderRadius:16, padding:48, textAlign:"center", color:"#9ca3af" }}>
-      Carte des pharmacies — bientôt disponible
-    </div>
-  );
-}
 
 // ── Couleurs et noms par labo ────────────────────────────────
 const LAB_COLORS: Record<string, string> = {
@@ -88,6 +79,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
     { id: "messages",       label: "Messagerie",       icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "report-config", label: "Rapports Email", icon: Mail, roles: ["SUPER_ADMIN"] },
   ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
@@ -107,6 +99,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
       case "messages":       return <MessagesTab />;
       case "history":        return <LoginHistoryTab />;
       case "users":          return <UsersTab />;
+      case "report-config": return <ReportConfigTab />;
       default:               return <OverviewTab />;
     }
   };
