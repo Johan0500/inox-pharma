@@ -30,6 +30,7 @@ model User {
   createdBy         User?              @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers      User[]             @relation("UserCreator")
   strategies        Strategy[]
+  reportRecipient ReportRecipient?
 }
 
 model ActiveSession {
@@ -322,4 +323,22 @@ model Strategy {
 
   laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
   createdBy  User       @relation(fields: [createdById], references: [id])
+}
+
+model ReportConfig {
+  id           String   @id @default(cuid())
+  sendHour     Int      @default(9)   // heure d'envoi (0-23)
+  sendMinute   Int      @default(30)  // minute d'envoi
+  isActive     Boolean  @default(true)
+  recipients   ReportRecipient[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ReportRecipient {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  reportConfigId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportConfig   ReportConfig @relation(fields: [reportConfigId], references: [id], onDelete: Cascade)
 }
