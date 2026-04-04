@@ -27,6 +27,7 @@ import { setupGPSSocket } from "./socket/gpsSocket";
 import { checkInactiveDelegates } from "./utils/alerts";
 import { scheduleMorningReport } from "./utils/morningReport";
 import reportConfigRoutes from "./routes/reportConfig";
+import emailScheduleRoutes from "./routes/emailSchedule";
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/objectives",    objectiveRoutes);
 app.use("/api/strategies",    strategieRoutes);
 app.use("/api/report-config", reportConfigRoutes);
+app.use("/api/email-schedule", emailScheduleRoutes);
 
 // ── Socket GPS + Messages ────────────────────────────────────
 setupGPSSocket(io);

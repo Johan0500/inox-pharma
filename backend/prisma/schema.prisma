@@ -31,6 +31,8 @@ model User {
   createdUsers      User[]             @relation("UserCreator")
   strategies        Strategy[]
   reportRecipient ReportRecipient?
+  emailSchedules         EmailSchedule[]
+  emailScheduleRecipients EmailScheduleRecipient[]
 }
 
 model ActiveSession {
@@ -341,4 +343,24 @@ model ReportRecipient {
   reportConfigId String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   reportConfig   ReportConfig @relation(fields: [reportConfigId], references: [id], onDelete: Cascade)
+}
+model EmailSchedule {
+  id           String   @id @default(cuid())
+  hour         Int      @default(9)
+  minute       Int      @default(30)
+  isActive     Boolean  @default(true)
+  recipients   EmailScheduleRecipient[]
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    User     @relation(fields: [createdById], references: [id])
+}
+
+model EmailScheduleRecipient {
+  id         String        @id @default(cuid())
+  scheduleId String
+  userId     String
+  schedule   EmailSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([scheduleId, userId])
 }

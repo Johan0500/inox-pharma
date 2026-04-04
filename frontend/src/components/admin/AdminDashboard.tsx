@@ -28,6 +28,7 @@ import ChangePasswordModal    from "../shared/ChangePasswordModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
 import ReportConfigTab from "./tabs/ReportConfigTab";
 import PharmaciesMapTab from "./tabs/PharmaciesMapTab";
+import EmailScheduleTab from "./tabs/EmailScheduleTab";
 
 
 // ── Couleurs et noms par labo ────────────────────────────────
@@ -80,6 +81,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
     { id: "history",        label: "Connexions",       icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "report-config", label: "Rapports Email", icon: Mail, roles: ["SUPER_ADMIN"] },
+    { id: "email-schedule", label: "Email Auto", icon: Mail, roles: ["SUPER_ADMIN"] },
   ].filter((tab) => tab.roles.includes(user?.role || ""));
 
   const renderTab = () => {
@@ -100,6 +102,7 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
       case "history":        return <LoginHistoryTab />;
       case "users":          return <UsersTab />;
       case "report-config": return <ReportConfigTab />;
+      case "email-schedule": return <EmailScheduleTab />;
       default:               return <OverviewTab />;
     }
   };
