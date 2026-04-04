@@ -3,33 +3,48 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mail, Clock, Users, Send, ToggleLeft, ToggleRight, Check, AlertCircle } from "lucide-react";
 import api from "../../../services/api";
 
+// ── Types ────────────────────────────────────────────────────
+
+interface Recipient {
+  userId: string;
+}
+
+interface Schedule {
+  isActive:   boolean;
+  hour:       number;
+  minute:     number;
+  recipients: Recipient[];
+}
+
+// ── Composant ────────────────────────────────────────────────
+
 export default function EmailScheduleTab() {
   const qc = useQueryClient();
-  const [hour,      setHour]      = useState("9");
-  const [minute,    setMinute]    = useState("30");
-  const [selected,  setSelected]  = useState<string[]>([]);
-  const [testSent,  setTestSent]  = useState(false);
-  const [saved,     setSaved]     = useState(false);
+  const [hour,     setHour]     = useState("9");
+  const [minute,   setMinute]   = useState("30");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [testSent, setTestSent] = useState(false);
+  const [saved,    setSaved]    = useState(false);
 
-  const { data: schedule, isLoading } = useQuery({
+  const { data: schedule, isLoading } = useQuery<Schedule>({
     queryKey: ["email-schedule"],
     queryFn:  () => api.get("/email-schedule").then((r) => r.data),
     onSuccess: (data) => {
       if (data) {
         setHour(String(data.hour));
-        setMinute(String(data.minute).padStart(2,"0"));
-        setSelected(data.recipients?.map((r: any) => r.userId) || []);
+        setMinute(String(data.minute).padStart(2, "0"));
+        setSelected(data.recipients?.map((r) => r.userId) || []);
       }
     },
   } as any);
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [] } = useQuery<any[]>({
     queryKey: ["users-for-email"],
     queryFn:  () => api.get("/users").then((r) => r.data),
   });
 
-  const adminsAndSuper = (users as any[]).filter((u) =>
-    ["ADMIN","SUPER_ADMIN"].includes(u.role)
+  const adminsAndSuper = users.filter((u) =>
+    ["ADMIN", "SUPER_ADMIN"].includes(u.role)
   );
 
   const saveConfig = useMutation({
@@ -143,8 +158,8 @@ export default function EmailScheduleTab() {
               onChange={(e) => setHour(e.target.value)}
               className="bg-transparent text-3xl font-bold text-gray-800 outline-none cursor-pointer"
             >
-              {Array.from({length:24}, (_, i) => (
-                <option key={i} value={i}>{String(i).padStart(2,"0")}</option>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
               ))}
             </select>
             <span className="text-3xl font-bold text-gray-400">:</span>
@@ -153,7 +168,7 @@ export default function EmailScheduleTab() {
               onChange={(e) => setMinute(e.target.value)}
               className="bg-transparent text-3xl font-bold text-gray-800 outline-none cursor-pointer"
             >
-              {["00","15","30","45"].map((m) => (
+              {["00", "15", "30", "45"].map((m) => (
                 <option key={m} value={parseInt(m)}>{m}</option>
               ))}
             </select>
@@ -161,7 +176,7 @@ export default function EmailScheduleTab() {
           <div className="text-sm text-gray-500">
             <p>L'email sera envoyé chaque jour</p>
             <p className="font-semibold text-gray-700">
-              à {String(hour).padStart(2,"0")}h{String(minute).padStart(2,"0")} (heure locale du serveur)
+              à {String(hour).padStart(2, "0")}h{String(minute).padStart(2, "0")} (heure locale du serveur)
             </p>
           </div>
         </div>
@@ -195,7 +210,6 @@ export default function EmailScheduleTab() {
                     : "border-gray-100 bg-gray-50 hover:border-gray-200"
                   }`}
               >
-                {/* Avatar */}
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0
                   ${isSelected ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"}`}>
                   {isSelected
@@ -203,8 +217,6 @@ export default function EmailScheduleTab() {
                     : `${u.firstName[0]}${u.lastName[0]}`
                   }
                 </div>
-
-                {/* Infos */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-800 text-sm">
@@ -219,8 +231,6 @@ export default function EmailScheduleTab() {
                     <p className="text-xs text-green-600 font-medium">{labs.toUpperCase()}</p>
                   )}
                 </div>
-
-                {/* Email envoyé pour */}
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-400">Recevra</p>
                   <p className="text-xs font-semibold text-gray-700">
@@ -265,7 +275,12 @@ export default function EmailScheduleTab() {
           disabled={saveConfig.isPending || selected.length === 0}
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition disabled:opacity-60 shadow-sm"
         >
-          {saved ? <><Check size={18} /> Sauvegardé !</> : saveConfig.isPending ? "Sauvegarde..." : <><Check size={18} /> Enregistrer la configuration</>}
+          {saved
+            ? <><Check size={18} /> Sauvegardé !</>
+            : saveConfig.isPending
+            ? "Sauvegarde..."
+            : <><Check size={18} /> Enregistrer la configuration</>
+          }
         </button>
 
         <button
@@ -293,7 +308,7 @@ export default function EmailScheduleTab() {
             : "bg-gray-50 border-gray-200 text-gray-500"
         }`}>
           {schedule.isActive ? (
-            <p>✅ Rapport automatique <strong>actif</strong> — Envoi chaque jour à <strong>{String(schedule.hour).padStart(2,"0")}h{String(schedule.minute).padStart(2,"0")}</strong> — {schedule.recipients?.length || 0} destinataire(s)</p>
+            <p>✅ Rapport automatique <strong>actif</strong> — Envoi chaque jour à <strong>{String(schedule.hour).padStart(2, "0")}h{String(schedule.minute).padStart(2, "0")}</strong> — {schedule.recipients?.length || 0} destinataire(s)</p>
           ) : (
             <p>⏸️ Rapport automatique <strong>désactivé</strong> — Cliquez sur "Inactif" pour réactiver</p>
           )}
