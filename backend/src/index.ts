@@ -25,6 +25,7 @@ import objectiveRoutes    from "./routes/objectives";
 import strategieRoutes    from "./routes/strategies";
 import { setupGPSSocket } from "./socket/gpsSocket";
 import { checkInactiveDelegates } from "./utils/alerts";
+import { scheduleMorningReport } from "./utils/morningReport";
 
 dotenv.config();
 
@@ -120,6 +121,8 @@ httpServer.listen(PORT, "0.0.0.0", () => {
 
   // Init DB en arrière-plan
   initDb();
+  // Rapport automatique chaque matin à 9h30
+  scheduleMorningReport();
 
   // Vérifier les délégués inactifs toutes les 24h
   setInterval(() => { checkInactiveDelegates(); }, 24 * 60 * 60 * 1000);

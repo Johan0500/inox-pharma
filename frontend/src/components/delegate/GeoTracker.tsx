@@ -1,34 +1,39 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { io, Socket } from "socket.io-client";
-import { useAuth } from "../../contexts/AuthContext";
-import { MapPin, Navigation, Coffee, Play, Square, Wifi, WifiOff } from "lucide-react";
+import { io, Socket }  from "socket.io-client";
+import { useAuth }     from "../../contexts/AuthContext";
+import { MapPin, Navigation, Coffee, Square, Wifi, WifiOff, Clock } from "lucide-react";
 
 type Status = "EN_VISITE" | "EN_DEPLACEMENT" | "EN_PAUSE";
 
-const STATUSES: { key: Status; label: string; icon: any; color: string; bg: string }[] = [
-  { key: "EN_VISITE",      label: "En visite",      icon: MapPin,      color: "bg-green-500",  bg: "bg-green-50 border-green-200 text-green-700"   },
-  { key: "EN_DEPLACEMENT", label: "En déplacement", icon: Navigation,  color: "bg-blue-500",   bg: "bg-blue-50 border-blue-200 text-blue-700"      },
-  { key: "EN_PAUSE",       label: "En pause",       icon: Coffee,      color: "bg-yellow-500", bg: "bg-yellow-50 border-yellow-200 text-yellow-700" },
+const STATUSES: { key: Status; label: string; icon: any; color: string }[] = [
+  { key: "EN_VISITE",      label: "En visite",      icon: MapPin,      color: "#16a34a" },
+  { key: "EN_DEPLACEMENT", label: "En déplacement", icon: Navigation,  color: "#2563eb" },
+  { key: "EN_PAUSE",       label: "En pause",        icon: Coffee,      color: "#d97706" },
 ];
 
-export default function GeoTracker() {
-  const { token }                   = useAuth();
-  const socketRef                   = useRef<Socket | null>(null);
-  const watchRef                    = useRef<number | null>(null);
-  const pingRef                     = useRef<NodeJS.Timeout | null>(null);
-  const reconnectRef                = useRef<NodeJS.Timeout | null>(null);
+const STOP_HOUR   = 18;
+const STOP_MINUTE = 30;
 
-  const [tracking,  setTracking]    = useState(false);
-  const [status,    setStatus]      = useState<Status>("EN_DEPLACEMENT");
-  const [lastPos,   setLastPos]     = useState<{ lat: number; lng: number } | null>(null);
-  const [error,     setError]       = useState("");
-  const [connected, setConnected]   = useState(false);
-  const [sendCount, setSendCount]   = useState(0);
-  const [lastSent,  setLastSent]    = useState<Date | null>(null);
+export default function GeoTracker() {
+  const { token }     = useAuth();
+  const socketRef     = useRef<Socket | null>(null);
+  const watchRef      = useRef<number | null>(null);
+  const pingRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusRef     = useRef<Status>("EN_DEPLACEMENT");
+
+  const [tracking,  setTracking]  = useState(false);
+  const [status,    setStatus]    = useState<Status>("EN_DEPLACEMENT");
+  const [lastPos,   setLastPos]   = useState<{ lat: number; lng: number } | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [sendCount, setSendCount] = useState(0);
+  const [lastSent,  setLastSent]  = useState<Date | null>(null);
+  const [stopTime,  setStopTime]  = useState<string | null>(null);
+  const [error,     setError]     = useState("");
 
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) return;
-
     const socket = io(
       import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
       { auth: { token }, reconnection: true, reconnectionDelay: 2000 }
@@ -36,18 +41,11 @@ export default function GeoTracker() {
     socketRef.current = socket;
     socket.on("connect",    () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
-    return socket;
   }, [token]);
 
   const sendPosition = useCallback((lat: number, lng: number, st: Status) => {
-    // Reconnecter si nécessaire
     if (!socketRef.current?.connected) {
       connectSocket();
-      setTimeout(() => {
-        if (socketRef.current?.connected) {
-          socketRef.current.emit("send_location", { latitude: lat, longitude: lng, status: st });
-        }
-      }, 2000);
       return;
     }
     socketRef.current.emit("send_location", { latitude: lat, longitude: lng, status: st });
@@ -56,189 +54,193 @@ export default function GeoTracker() {
     setLastSent(new Date());
   }, [connectSocket]);
 
-  const startTracking = () => {
-    if (!navigator.geolocation) {
-      setError("La géolocalisation n'est pas supportée sur cet appareil.");
-      return;
-    }
-    setError("");
+  const stopTracking = useCallback(() => {
+    if (watchRef.current    !== null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+    if (pingRef.current)      { clearInterval(pingRef.current);     pingRef.current    = null; }
+    if (reconnectRef.current) { clearInterval(reconnectRef.current); reconnectRef.current = null; }
+    if (stopTimerRef.current) { clearTimeout(stopTimerRef.current);  stopTimerRef.current = null; }
+    socketRef.current?.disconnect();
+    socketRef.current = null;
+    setTracking(false);
+    setConnected(false);
+  }, []);
 
+  const startTracking = useCallback((st: Status = "EN_DEPLACEMENT") => {
+    if (!navigator.geolocation) { setError("GPS non disponible sur cet appareil"); return; }
+    setError("");
     connectSocket();
 
-    // watchPosition — fonctionne en avant-plan
+    // Calculer le délai avant 18h30
+    const now      = new Date();
+    const stop     = new Date();
+    stop.setHours(STOP_HOUR, STOP_MINUTE, 0, 0);
+
+    if (now >= stop) {
+      setError("Le suivi GPS s'arrête automatiquement à 18h30.");
+      return;
+    }
+
+    const msUntilStop = stop.getTime() - now.getTime();
+    setStopTime(`${STOP_HOUR}h${STOP_MINUTE}`);
+
+    // Arrêt automatique à 18h30
+    stopTimerRef.current = setTimeout(() => {
+      stopTracking();
+      setError("Suivi GPS arrêté automatiquement à 18h30.");
+    }, msUntilStop);
+
+    // watchPosition — avant-plan
     watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
+      (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, statusRef.current),
       (err) => setError(`Erreur GPS : ${err.message}`),
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
     );
 
-    // Ping toutes les 30 secondes — fonctionne en arrière-plan
+    // Ping toutes les 30s — arrière-plan
     pingRef.current = setInterval(() => {
       navigator.geolocation.getCurrentPosition(
-        (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
+        (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, statusRef.current),
         () => {},
         { enableHighAccuracy: false, maximumAge: 30000, timeout: 10000 }
       );
     }, 30000);
 
-    // Vérifier la connexion toutes les 15 secondes
+    // Reconnexion socket toutes les 15s
     reconnectRef.current = setInterval(() => {
-      if (!socketRef.current?.connected) {
-        console.log("🔄 Reconnexion socket...");
-        connectSocket();
-      }
+      if (!socketRef.current?.connected) connectSocket();
     }, 15000);
 
     setTracking(true);
-  };
+  }, [connectSocket, sendPosition, stopTracking]);
 
-  const stopTracking = () => {
-    if (watchRef.current !== null) {
-      navigator.geolocation.clearWatch(watchRef.current);
-      watchRef.current = null;
-    }
-    if (pingRef.current) {
-      clearInterval(pingRef.current);
-      pingRef.current = null;
-    }
-    if (reconnectRef.current) {
-      clearInterval(reconnectRef.current);
-      reconnectRef.current = null;
-    }
-    socketRef.current?.disconnect();
-    socketRef.current = null;
-    setTracking(false);
-    setConnected(false);
-    setSendCount(0);
-  };
-
-  const changeStatus = (newStatus: Status) => {
-    setStatus(newStatus);
-    if (tracking && lastPos) {
-      sendPosition(lastPos.lat, lastPos.lng, newStatus);
-    }
-  };
-
-  // Gérer le passage en arrière-plan
+  // Démarrage AUTOMATIQUE au montage
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && tracking && lastPos) {
-        // App en arrière-plan — forcer un envoi immédiat
-        sendPosition(lastPos.lat, lastPos.lng, status);
-      } else if (!document.hidden && tracking) {
-        // App revenue en avant-plan — reconnecter si nécessaire
-        if (!socketRef.current?.connected) {
-          connectSocket();
-        }
-        // Forcer une nouvelle position
-        navigator.geolocation.getCurrentPosition(
-          (pos) => sendPosition(pos.coords.latitude, pos.coords.longitude, status),
-          () => {},
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-        );
+    const now  = new Date();
+    const stop = new Date();
+    stop.setHours(STOP_HOUR, STOP_MINUTE, 0, 0);
+
+    if (now < stop) {
+      startTracking("EN_DEPLACEMENT");
+    } else {
+      setError("Le suivi GPS est disponible jusqu'à 18h30.");
+    }
+
+    // Gestion arrière-plan
+    const handleVisibility = () => {
+      if (!document.hidden && tracking && !socketRef.current?.connected) {
+        connectSocket();
+        if (lastPos) sendPosition(lastPos.lat, lastPos.lng, statusRef.current);
       }
     };
+    document.addEventListener("visibilitychange", handleVisibility);
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [tracking, lastPos, status, sendPosition, connectSocket]);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stopTracking();
+    };
+  }, []);
 
-  // Nettoyage au démontage
-  useEffect(() => () => { stopTracking(); }, []);
+  const changeStatus = (newStatus: Status) => {
+    statusRef.current = newStatus;
+    setStatus(newStatus);
+    if (tracking && lastPos) sendPosition(lastPos.lat, lastPos.lng, newStatus);
+  };
+
+  const now  = new Date();
+  const stop = new Date();
+  stop.setHours(STOP_HOUR, STOP_MINUTE, 0, 0);
+  const msLeft    = stop.getTime() - now.getTime();
+  const hoursLeft = Math.floor(msLeft / 3600000);
+  const minsLeft  = Math.floor((msLeft % 3600000) / 60000);
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-800">Ma Position GPS</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-800">Suivi GPS</h2>
+        {tracking && msLeft > 0 && (
+          <div className="flex items-center gap-1.5 text-xs bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-xl">
+            <Clock size={12} />
+            Arrêt dans {hoursLeft}h{minsLeft.toString().padStart(2,"0")}
+          </div>
+        )}
+      </div>
 
-      {/* Sélection du statut */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <p className="text-sm font-medium text-gray-600 mb-3">Mon statut actuel :</p>
+      {/* Statut connexion */}
+      {tracking && (
+        <div className={`rounded-2xl p-4 flex items-center gap-3 border ${
+          connected ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"
+        }`}>
+          {connected
+            ? <Wifi    size={18} className="text-green-500 flex-shrink-0" />
+            : <WifiOff size={18} className="text-yellow-500 flex-shrink-0" />
+          }
+          <div className="flex-1">
+            <p className={`font-semibold text-sm ${connected ? "text-green-700" : "text-yellow-700"}`}>
+              {connected ? "📍 Suivi GPS actif — votre position est partagée" : "🔄 Reconnexion..."}
+            </p>
+            {lastPos && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {lastPos.lat.toFixed(5)}, {lastPos.lng.toFixed(5)}
+                {lastSent && ` · ${lastSent.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}`}
+              </p>
+            )}
+            {sendCount > 0 && (
+              <p className="text-xs text-gray-400">{sendCount} position(s) envoyée(s)</p>
+            )}
+          </div>
+          {connected && <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
+        </div>
+      )}
+
+      {/* Sélection statut */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <p className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Mon statut actuel</p>
         <div className="flex flex-col gap-2">
-          {STATUSES.map(({ key, label, icon: Icon, color, bg }) => (
+          {STATUSES.map(({ key, label, icon: Icon, color }) => (
             <button
               key={key}
               onClick={() => changeStatus(key)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition font-medium text-sm
-                ${status === key
-                  ? `${color} text-white border-transparent shadow-md`
-                  : `bg-white border-gray-200 text-gray-600 hover:border-gray-300`
-                }`}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition font-medium text-sm"
+              style={{
+                background:   status === key ? color : "white",
+                borderColor:  status === key ? color : "#e5e7eb",
+                color:        status === key ? "white" : "#6b7280",
+              }}
             >
               <Icon size={18} />
               {label}
-              {status === key && <span className="ml-auto text-white/80 text-xs">✓ Sélectionné</span>}
+              {status === key && <span className="ml-auto text-white/80 text-xs">✓ Actif</span>}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Bouton Start/Stop */}
-      <button
-        onClick={tracking ? stopTracking : startTracking}
-        className={`w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3
-                    transition shadow-lg active:scale-95
-          ${tracking
-            ? "bg-red-500 hover:bg-red-600 text-white"
-            : "bg-blue-600 hover:bg-blue-700 text-white"
-          }`}
-      >
-        {tracking
-          ? <><Square size={20} /> Arrêter le suivi GPS</>
-          : <><Play  size={20} /> Démarrer le suivi GPS</>
-        }
-      </button>
-
-      {/* Statut de connexion */}
+      {/* Bouton stop manuel */}
       {tracking && (
-        <div className={`rounded-2xl p-4 flex items-start gap-3 border ${
-          connected
-            ? "bg-green-50 border-green-200"
-            : "bg-yellow-50 border-yellow-200"
-        }`}>
-          <div className="mt-0.5">
-            {connected
-              ? <Wifi size={18} className="text-green-500" />
-              : <WifiOff size={18} className="text-yellow-500" />
-            }
-          </div>
-          <div className="flex-1">
-            <p className={`font-semibold text-sm ${connected ? "text-green-700" : "text-yellow-700"}`}>
-              {connected ? "Suivi GPS actif" : "Reconnexion en cours..."}
-            </p>
-            {lastPos && (
-              <p className="text-xs text-gray-500 mt-0.5">
-                Lat : {lastPos.lat.toFixed(5)} | Lng : {lastPos.lng.toFixed(5)}
-              </p>
-            )}
-            {sendCount > 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                {sendCount} position(s) envoyée(s)
-                {lastSent && ` — dernière à ${lastSent.toLocaleTimeString("fr-FR")}`}
-              </p>
-            )}
-          </div>
-          {connected && (
-            <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse mt-1 flex-shrink-0" />
-          )}
+        <button
+          onClick={stopTracking}
+          className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition bg-red-500 hover:bg-red-600 text-white shadow-lg active:scale-95"
+        >
+          <Square size={16} />
+          Arrêter le suivi GPS
+        </button>
+      )}
+
+      {/* Info arrêt automatique */}
+      {tracking && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-500 flex items-start gap-2">
+          <Clock size={14} className="flex-shrink-0 mt-0.5" />
+          <span>
+            Le suivi GPS s'arrête automatiquement à <strong>18h30</strong> ou à votre déconnexion.
+            Il continue à fonctionner même si l'app est en arrière-plan.
+          </span>
         </div>
       )}
 
       {/* Erreur */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 text-sm">
-          ❌ {error}
-        </div>
-      )}
-
-      {/* Info si pas actif */}
-      {!tracking && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-sm text-blue-700">
-          <p className="font-medium mb-1">ℹ️ Comment ça fonctionne</p>
-          <p className="text-blue-600 text-xs leading-relaxed">
-            Sélectionnez votre statut puis appuyez sur "Démarrer le suivi GPS".
-            Votre position sera transmise toutes les 30 secondes même si l'app
-            est en arrière-plan. Vous pouvez utiliser votre téléphone normalement.
-          </p>
+          ⚠️ {error}
         </div>
       )}
     </div>
