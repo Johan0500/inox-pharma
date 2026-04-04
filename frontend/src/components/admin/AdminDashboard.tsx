@@ -103,7 +103,8 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
       default:               return <OverviewTab />;
     }
   };
-
+console.log("USER ROLE:", user?.role);
+console.log("TABS:", TABS.map(t => t.id));
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0fdf4", overflow:"hidden", fontFamily:"system-ui, sans-serif" }}>
 
