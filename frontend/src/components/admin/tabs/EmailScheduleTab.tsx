@@ -1,7 +1,7 @@
-import { useState }                              from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mail, Clock, Users, Send, ToggleLeft, ToggleRight, Check, AlertCircle, X } from "lucide-react";
 import api from "../../../services/api";
+import { useState, useEffect } from "react";
 
 export default function EmailScheduleTab() {
   const qc = useQueryClient();
@@ -16,14 +16,14 @@ export default function EmailScheduleTab() {
     queryFn:  () => api.get("/email-schedule").then((r) => r.data),
   });
 
-  // Initialiser les valeurs depuis la config
-  useState(() => {
+  // Initialiser les valeurs quand schedule arrive
+  useEffect(() => {
     if (schedule) {
       setHour(String(schedule.hour));
       setMinute(String(schedule.minute).padStart(2, "0"));
       setSelected(schedule.recipients?.map((r: any) => r.userId) || []);
     }
-  });
+  }, [schedule]);
 
   const { data: users = [] } = useQuery({
     queryKey: ["users-for-email"],

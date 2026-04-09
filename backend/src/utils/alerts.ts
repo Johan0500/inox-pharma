@@ -1,8 +1,12 @@
 import { PrismaClient } from "@prisma/client";
-import { sendEmail, alertInactiveDelegateEmail } from "./mailer";
-import { notifyAdmins } from "../routes/notifications";
+import sgMail           from "@sendgrid/mail";
 
-const prisma = new PrismaClient();
+const prisma     = new PrismaClient();
+const FROM_EMAIL = process.env.SMTP_FROM || "noreply@inoxpharma.com";
+
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 export async function checkInactiveDelegates() {
   try {
@@ -23,42 +27,53 @@ export async function checkInactiveDelegates() {
     });
 
     for (const d of delegates) {
-      const lastReport     = d.visitReports[0];
-      const lastReportDate = lastReport ? new Date(lastReport.visitDate) : null;
-      const isInactive     = !lastReportDate || lastReportDate < thresholdDate;
+      const lastReport    = d.visitReports[0];
+      const lastDate      = lastReport ? new Date(lastReport.visitDate) : null;
+      const isInactive    = !lastDate || lastDate < thresholdDate;
 
       if (isInactive) {
-        const daysSince = lastReportDate
-          ? Math.floor((Date.now() - lastReportDate.getTime()) / (1000 * 60 * 60 * 24))
+        const daysSince   = lastDate
+          ? Math.floor((Date.now() - lastDate.getTime()) / (1000*60*60*24))
           : 999;
-
         const delegateName = `${d.user.firstName} ${d.user.lastName}`;
-        const lastDateStr  = lastReportDate
-          ? lastReportDate.toLocaleDateString("fr-FR")
-          : null;
 
-        // Emails aux super admins
-        await Promise.allSettled(
-          superAdmins.map((admin) =>
-            sendEmail(
-              admin.email,
-              `⚠️ Délégué inactif : ${delegateName}`,
-              alertInactiveDelegateEmail(delegateName, d.zone, lastDateStr, daysSince),
-            ),
-          ),
-        );
+        console.log(`🔔 Alerte : ${delegateName} inactif depuis ${daysSince} jours`);
 
-        // Notification push
-        await notifyAdmins(
-          "⚠️ Délégué inactif",
-          `${delegateName} (${d.zone}) n'a pas soumis de rapport depuis ${daysSince} jour(s)`,
-          "/dashboard",
-        );
-
-        console.log(`🔔 Alerte envoyée pour ${delegateName} — inactif depuis ${daysSince} jours`);
+        // Envoyer email seulement si SendGrid est configuré
+        if (process.env.SENDGRID_API_KEY) {
+          for (const admin of superAdmins) {
+            try {
+              await sgMail.send({
+                to:      admin.email,
+                from:    { email: FROM_EMAIL, name: "INOX PHARMA" },
+                subject: `⚠️ Délégué inactif : ${delegateName}`,
+                html: `
+                  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                    <div style="background:#064e3b;padding:20px;border-radius:8px 8px 0 0;text-align:center">
+                      <h1 style="color:white;margin:0;font-size:18px">🏥 INOX PHARMA</h1>
+                    </div>
+                    <div style="background:#fef2f2;border:1px solid #fecaca;padding:20px;border-radius:0 0 8px 8px">
+                      <h2 style="color:#dc2626;font-size:16px">⚠️ Délégué inactif depuis ${daysSince} jour(s)</h2>
+                      <p style="color:#374151">
+                        Le délégué <strong>${delegateName}</strong> (zone: ${d.zone})
+                        n'a pas soumis de rapport depuis <strong>${daysSince} jours</strong>.
+                      </p>
+                      ${lastDate
+                        ? `<p style="color:#6b7280">Dernier rapport : ${lastDate.toLocaleDateString("fr-FR")}</p>`
+                        : `<p style="color:#dc2626">Aucun rapport soumis.</p>`
+                      }
+                    </div>
+                  </div>
+                `,
+              });
+            } catch (emailErr: any) {
+              console.error(`❌ Email alerte échoué:`, emailErr?.message);
+            }
+          }
+        }
       }
     }
   } catch (err) {
-    console.error("Erreur alertes délégués:", err);
+    console.error("Erreur checkInactiveDelegates:", err);
   }
 }
