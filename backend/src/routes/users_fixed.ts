@@ -6,6 +6,7 @@ import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
 const router = Router();
 const prisma = new PrismaClient();
 
+// ── Liste des utilisateurs ───────────────────────────────────
 router.get("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -18,20 +19,30 @@ router.get("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: Au
     });
     res.json(users);
   } catch (err) {
+    console.error("Get users error:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
+// ── Créer un utilisateur ─────────────────────────────────────
 router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
   try {
     const { email, password, firstName, lastName, role, labs, zone, phone } = req.body;
+
     if (!email || !password || !firstName || !lastName)
       return res.status(400).json({ error: "Champs obligatoires manquants" });
 
-    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (existing) return res.status(400).json({ error: "Email déjà utilisé" });
+    if (password.length < 6)
+      return res.status(400).json({ error: "Le mot de passe doit avoir au moins 6 caractères" });
+
+    const existing = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+    });
+    if (existing)
+      return res.status(400).json({ error: "Cet email est déjà utilisé" });
 
     const labsToUse = labs || [];
+
     const hash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: {
@@ -44,39 +55,54 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
       },
     });
 
+    // Créer le profil délégué
     if (role === "DELEGATE" || !role) {
-      const lab = labsToUse[0]
-        ? await prisma.laboratory.findUnique({ where: { name: labsToUse[0] } })
-        : null;
-      if (lab) {
-        await prisma.delegate.create({
-          data: { userId: user.id, laboratoryId: lab.id, zone: zone || "Non défini", phone: phone || null },
+      if (labsToUse.length > 0) {
+        const lab = await prisma.laboratory.findFirst({
+          where: { name: { equals: labsToUse[0], mode: "insensitive" } },
         });
-      }
-    } else if (role === "ADMIN" && labsToUse.length > 0) {
-      for (const labName of labsToUse) {
-        const lab = await prisma.laboratory.findUnique({ where: { name: labName } });
         if (lab) {
-          await prisma.adminLaboratory.create({ data: { userId: user.id, laboratoryId: lab.id } });
+          await prisma.delegate.create({
+            data: {
+              userId:      user.id,
+              laboratoryId: lab.id,
+              zone:        zone?.trim() || "Non défini",
+              phone:       phone?.trim() || null,
+            },
+          });
         }
       }
     }
 
-    res.status(201).json({ message: "Utilisateur créé", user });
-  } catch (err) {
+    // Créer le profil admin
+    if (role === "ADMIN" && labsToUse.length > 0) {
+      for (const labName of labsToUse) {
+        const lab = await prisma.laboratory.findFirst({
+          where: { name: { equals: labName, mode: "insensitive" } },
+        });
+        if (lab) {
+          await prisma.adminLaboratory.create({
+            data: { userId: user.id, laboratoryId: lab.id },
+          });
+        }
+      }
+    }
+
+    res.status(201).json({ message: "Utilisateur créé avec succès", user });
+  } catch (err: any) {
     console.error("Create user error:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    res.status(500).json({ error: "Erreur serveur lors de la création" });
   }
 });
 
-// Changer son propre mot de passe
+// ── Changer son mot de passe ─────────────────────────────────
 router.patch("/me/password", authenticate, async (req: AuthRequest, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword)
       return res.status(400).json({ error: "Ancien et nouveau mot de passe requis" });
     if (newPassword.length < 6)
-      return res.status(400).json({ error: "Le nouveau mot de passe doit avoir au moins 6 caractères" });
+      return res.status(400).json({ error: "Minimum 6 caractères" });
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
@@ -92,10 +118,10 @@ router.patch("/me/password", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Activer/désactiver un compte
+// ── Activer / désactiver ─────────────────────────────────────
 router.patch("/:id/toggle", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req, res) => {
   try {
-    const user    = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
     const updated = await prisma.user.update({
       where: { id: req.params.id },
@@ -107,7 +133,7 @@ router.patch("/:id/toggle", authenticate, requireRole("SUPER_ADMIN","ADMIN"), as
   }
 });
 
-// Déconnecter un utilisateur spécifique
+// ── Déconnecter un utilisateur ───────────────────────────────
 router.delete("/:id/session", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req, res) => {
   try {
     await prisma.activeSession.deleteMany({ where: { userId: req.params.id } });
@@ -117,10 +143,12 @@ router.delete("/:id/session", authenticate, requireRole("SUPER_ADMIN","ADMIN"), 
   }
 });
 
-// Déconnecter TOUS les utilisateurs
+// ── Déconnecter tous ─────────────────────────────────────────
 router.delete("/sessions/all", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
   try {
-    await prisma.activeSession.deleteMany({ where: { userId: { not: req.user!.id } } });
+    await prisma.activeSession.deleteMany({
+      where: { userId: { not: req.user!.id } },
+    });
     res.json({ message: "Tous les utilisateurs déconnectés" });
   } catch (err) {
     res.status(500).json({ error: "Erreur serveur" });
