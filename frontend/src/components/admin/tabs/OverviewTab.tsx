@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users, Building2, FileText, MapPin, TrendingUp, Clock } from "lucide-react";
+import { Users, Building2, FileText, MapPin, TrendingUp, Clock, FlaskConical } from "lucide-react";
 import api from "../../../services/api";
 import { useAuth } from "../../../contexts/AuthContext";
 import { format } from "date-fns";
@@ -7,116 +7,176 @@ import { fr } from "date-fns/locale";
 
 export default function OverviewTab() {
   const { user } = useAuth();
+  const selectedLab = localStorage.getItem("selectedLab");
+  const isGlobal = !selectedLab || selectedLab === "all";
 
   const { data: stats } = useQuery({
-    queryKey: ["stats-dashboard"],
-    queryFn: () => api.get("/stats/dashboard").then((r) => r.data),
+    queryKey: ["stats-dashboard", selectedLab],
+    queryFn:  () => api.get("/stats").then(r => r.data),
     refetchInterval: 30000,
   });
 
+  const labColor = selectedLab === "lic-pharma" ? "#065f46"
+    : selectedLab === "croient" ? "#1e40af"
+    : "#064e3b";
+
   const cards = [
-    {
-      label: "Total Délégués",
-      value: stats?.totalDelegates ?? "—",
-      icon: Users,
-      color: "bg-blue-500",
-      bg: "bg-blue-50",
-      text: "text-blue-600",
-    },
-    {
-      label: "Actifs maintenant",
-      value: stats?.activeDelegates ?? "—",
-      icon: MapPin,
-      color: "bg-green-500",
-      bg: "bg-green-50",
-      text: "text-green-600",
-    },
-    {
-      label: "Rapports de visite",
-      value: stats?.totalReports?.toLocaleString() ?? "—",
-      icon: FileText,
-      color: "bg-purple-500",
-      bg: "bg-purple-50",
-      text: "text-purple-600",
-    },
-    {
-      label: "Pharmacies",
-      value: stats?.totalPharmacies?.toLocaleString() ?? "—",
-      icon: Building2,
-      color: "bg-orange-500",
-      bg: "bg-orange-50",
-      text: "text-orange-600",
-    },
+    { label: "Total Délégués",    value: stats?.totalDelegates ?? "—",                    icon: Users,     color: "#3b82f6" },
+    { label: "Délégués actifs",   value: stats?.activeDelegates ?? "—",                   icon: MapPin,    color: "#22c55e" },
+    { label: "Rapports de visite",value: stats?.totalReports?.toLocaleString() ?? "—",    icon: FileText,  color: "#8b5cf6" },
+    { label: "Pharmacies",        value: stats?.totalPharmacies?.toLocaleString() ?? "—", icon: Building2, color: "#f97316" },
   ];
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
       {/* En-tête */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800">
-          Bonjour, {user?.firstName} 👋
-        </h2>
-        <p className="text-gray-500 text-sm mt-1">
-          {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
-        </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#1f2937" }}>
+            Bonjour, {user?.firstName} 👋
+          </h2>
+          <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 13 }}>
+            {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
+          </p>
+        </div>
+        {selectedLab && selectedLab !== "all" && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: `${labColor}15`, border: `1px solid ${labColor}30`,
+            borderRadius: 12, padding: "8px 16px",
+          }}>
+            <FlaskConical size={16} color={labColor} />
+            <span style={{ color: labColor, fontWeight: 700, fontSize: 13, textTransform: "uppercase" }}>
+              {selectedLab}
+            </span>
+          </div>
+        )}
+        {isGlobal && (
+          <div style={{
+            background: "#f0fdf4", border: "1px solid #d1fae5",
+            borderRadius: 12, padding: "8px 16px",
+            color: "#064e3b", fontWeight: 700, fontSize: 13,
+          }}>
+            🌐 Vue globale — tous laboratoires
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {cards.map(({ label, value, icon: Icon, color, bg, text }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="flex items-start justify-between">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+        {cards.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} style={{
+            background: "white", borderRadius: 16, padding: 20,
+            border: "1px solid #e5e7eb", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
-                <p className="text-sm text-gray-500 mb-1">{label}</p>
-                <p className="text-3xl font-bold text-gray-800">{value}</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#6b7280", marginBottom: 6 }}>{label}</p>
+                <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#1f2937" }}>{value}</p>
               </div>
-              <div className={`${bg} rounded-xl p-3`}>
-                <Icon size={22} className={text} />
+              <div style={{
+                background: `${color}15`, borderRadius: 12, padding: 10,
+              }}>
+                <Icon size={20} color={color} />
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Rapports récents */}
-      {stats?.recentReports?.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <Clock size={18} className="text-blue-500" />
-            <h3 className="font-semibold text-gray-800">Derniers rapports de visite</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {stats.recentReports.map((r: any) => (
-              <div key={r.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition">
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">{r.doctorName}</p>
-                  <p className="text-xs text-gray-400">
-                    {r.delegate?.user?.firstName} {r.delegate?.user?.lastName}
-                    {r.laboratory && ` — ${r.laboratory.name}`}
-                  </p>
+      {/* Vue globale — comparaison labos */}
+      {isGlobal && user?.role === "SUPER_ADMIN" && stats?.byLab && (
+        <div style={{
+          background: "white", borderRadius: 16, border: "1px solid #e5e7eb",
+          padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+        }}>
+          <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700, color: "#1f2937" }}>
+            📊 Comparaison par laboratoire
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {(stats.byLab as any[]).map((lab: any) => (
+              <div key={lab.name} style={{
+                background: "#f8fafc", borderRadius: 12, padding: 16,
+                border: `2px solid ${lab.name === "lic-pharma" ? "#065f46" : "#1e40af"}20`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <FlaskConical size={16} color={lab.name === "lic-pharma" ? "#065f46" : "#1e40af"} />
+                  <span style={{
+                    fontWeight: 700, fontSize: 13, textTransform: "uppercase",
+                    color: lab.name === "lic-pharma" ? "#065f46" : "#1e40af",
+                  }}>
+                    {lab.name}
+                  </span>
                 </div>
-                <span className="text-xs text-gray-400">
-                  {format(new Date(r.visitDate), "dd/MM HH:mm")}
-                </span>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    { label: "Délégués", value: lab.delegates },
+                    { label: "Actifs",   value: lab.active },
+                    { label: "Rapports", value: lab.reports },
+                  ].map(item => (
+                    <div key={item.label} style={{ textAlign: "center" }}>
+                      <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#1f2937" }}>{item.value ?? "—"}</p>
+                      <p style={{ margin: 0, fontSize: 11, color: "#6b7280" }}>{item.label}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Bannière de bienvenue */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-2">
-          <TrendingUp size={22} />
-          <h3 className="text-lg font-bold">INOX PHARMA</h3>
+      {/* Rapports récents */}
+      {stats?.recentReports?.length > 0 && (
+        <div style={{
+          background: "white", borderRadius: 16, border: "1px solid #e5e7eb",
+          overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6",
+            display: "flex", alignItems: "center", gap: 8 }}>
+            <Clock size={16} color="#3b82f6" />
+            <h3 style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#1f2937" }}>
+              Derniers rapports de visite
+            </h3>
+          </div>
+          {stats.recentReports.map((r: any) => (
+            <div key={r.id} style={{
+              padding: "12px 20px", borderTop: "1px solid #f9fafb",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#1f2937" }}>{r.doctorName}</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#9ca3af" }}>
+                  {r.delegate?.user?.firstName} {r.delegate?.user?.lastName}
+                  {r.laboratory && ` — ${r.laboratory.name}`}
+                  {r.pharmacy && ` — ${r.pharmacy.nom}`}
+                </p>
+              </div>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                {format(new Date(r.visitDate), "dd/MM HH:mm")}
+              </span>
+            </div>
+          ))}
         </div>
-        <p className="text-blue-100 text-sm leading-relaxed">
+      )}
+
+      {/* Bannière */}
+      <div style={{
+        background: `linear-gradient(135deg, ${labColor} 0%, ${labColor}cc 100%)`,
+        borderRadius: 16, padding: 24, color: "white",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <TrendingUp size={20} />
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>INOX PHARMA</h3>
+        </div>
+        <p style={{ margin: 0, color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 1.6 }}>
           Bienvenue sur votre tableau de bord. Gérez vos délégués, suivez leurs déplacements
-          en temps réel sur la carte GPS et consultez tous les rapports de visites médicales.
+          en temps réel et consultez tous les rapports de visites médicales.
         </p>
         {user?.role === "SUPER_ADMIN" && (
-          <p className="text-blue-200 text-xs mt-2">
-            ✦ Mode Super Administrateur — accès complet à tous les laboratoires et grossistes
+          <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
+            ✦ Mode Super Administrateur — {isGlobal ? "Vue globale tous laboratoires" : `Filtré sur ${selectedLab}`}
           </p>
         )}
       </div>

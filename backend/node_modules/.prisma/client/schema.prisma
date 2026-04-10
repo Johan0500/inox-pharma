@@ -33,6 +33,7 @@ model User {
   reportRecipient ReportRecipient?
   emailSchedules         EmailSchedule[]
   emailScheduleRecipients EmailScheduleRecipient[]
+  avatar String?
 }
 
 model ActiveSession {

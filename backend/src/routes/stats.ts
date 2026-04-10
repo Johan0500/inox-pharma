@@ -24,10 +24,10 @@ async function buildLabFilter(req: AuthRequest) {
   return labWhere;
 }
 
-// ── Dashboard principal (avec filtre lab) ────────────────────
+// ── Dashboard principal (avec filtre lab + byLab) ────────────
 router.get("/", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
   try {
-    const labWhere     = await buildLabFilter(req);
+    const labWhere      = await buildLabFilter(req);
     const delegateWhere: any = labWhere.laboratoryId
       ? { laboratoryId: labWhere.laboratoryId }
       : {};
@@ -55,7 +55,23 @@ router.get("/", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: A
       }),
     ]);
 
-    res.json({ totalDelegates, activeDelegates, totalReports, totalPharmacies, recentReports });
+    // Vue globale SUPER_ADMIN sans filtre → comparaison par labo
+    let byLab = null;
+    if (!labWhere.laboratoryId && req.user!.role === "SUPER_ADMIN") {
+      const labs = await prisma.laboratory.findMany({ select: { id: true, name: true } });
+      byLab = await Promise.all(
+        labs.map(async (lab) => {
+          const [delegates, active, reports] = await Promise.all([
+            prisma.delegate.count({ where: { laboratoryId: lab.id } }),
+            prisma.delegate.count({ where: { laboratoryId: lab.id, status: { not: "INACTIF" } } }),
+            prisma.visitReport.count({ where: { laboratoryId: lab.id } }),
+          ]);
+          return { name: lab.name, delegates, active, reports };
+        })
+      );
+    }
+
+    res.json({ totalDelegates, activeDelegates, totalReports, totalPharmacies, recentReports, byLab });
   } catch (err) {
     res.status(500).json({ error: "Erreur serveur" });
   }
