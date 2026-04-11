@@ -8,6 +8,7 @@ interface AuthContextType {
   token:           string | null;
   login:           (token: string, user: User) => void;
   logout:          () => void;
+  updateUser:      (updates: Partial<User>) => void;
   isAuthenticated: boolean;
 }
 
@@ -26,7 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Intercepter les erreurs 401 (déconnexion forcée par admin)
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
@@ -42,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.interceptors.response.eject(interceptor);
   }, []);
 
-  // Sync automatique rapports hors ligne
   useEffect(() => {
     if (!token) return;
     const cleanup = setupAutoSync((result) => {
@@ -60,10 +59,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = (newToken: string, newUser: User) => {
-    localStorage.setItem("token",  newToken);
-    localStorage.setItem("user",   JSON.stringify(newUser));
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("user",  JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+  };
+
+  // ── Met à jour le user localement + localStorage ──────────
+  const updateUser = (updates: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem("user", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const logout = async () => {
@@ -72,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   );
