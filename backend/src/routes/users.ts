@@ -184,5 +184,44 @@ router.delete("/sessions/all", authenticate, requireRole("SUPER_ADMIN","ADMIN"),
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+// Ajouter cette route dans backend/src/routes/users.ts
+// AVANT export default router
+
+// ── Supprimer complètement un utilisateur ────────────────────
+router.delete("/:id", authenticate, requireRole("SUPER_ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    if (req.params.id === req.user!.id)
+      return res.status(400).json({ error: "Impossible de supprimer votre propre compte" });
+
+    // Supprimer dans l'ordre pour éviter les erreurs FK
+    await prisma.activeSession.deleteMany({ where: { userId: req.params.id } });
+    await prisma.loginHistory.deleteMany({ where: { userId: req.params.id } });
+    await prisma.message.deleteMany({
+      where: { OR: [{ senderId: req.params.id }, { receiverId: req.params.id }] }
+    });
+    await prisma.pushSubscription.deleteMany({ where: { userId: req.params.id } });
+    await prisma.adminLaboratory.deleteMany({ where: { userId: req.params.id } });
+    
+    // Supprimer les données du délégué si applicable
+    const delegate = await prisma.delegate.findUnique({ where: { userId: req.params.id } });
+    if (delegate) {
+      await prisma.delegateObjective.deleteMany({ where: { delegateId: delegate.id } });
+      await prisma.weeklyPlanning.deleteMany({ where: { delegateId: delegate.id } });
+      await prisma.gPSLog.deleteMany({ where: { delegateId: delegate.id } });
+      // Mettre à null les rapports plutôt que de les supprimer
+      await prisma.visitReport.updateMany({
+        where: { delegateId: delegate.id },
+        data:  { delegateId: delegate.id }, // garder les rapports
+      });
+      await prisma.delegate.delete({ where: { userId: req.params.id } });
+    }
+
+    await prisma.user.delete({ where: { id: req.params.id } });
+    res.json({ message: "Utilisateur supprimé définitivement" });
+  } catch (err) {
+    console.error("Delete user error:", err);
+    res.status(500).json({ error: "Erreur lors de la suppression" });
+  }
+});
 
 export default router;
