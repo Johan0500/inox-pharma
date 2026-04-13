@@ -14,7 +14,6 @@ import OverviewTab        from "./tabs/OverviewTab";
 import GPSMapTab          from "./tabs/GPSMapTab";
 import DelegatesTab       from "./tabs/DelegatesTab";
 import PharmaciesTab      from "./tabs/PharmaciesTab";
-import PharmaciesMapTab   from "./tabs/PharmaciesMapTab";
 import PlanningTab        from "./tabs/PlanningTab";
 import ReportsTab         from "./tabs/ReportsTab";
 import ProductsTab        from "./tabs/ProductsTab";
@@ -69,7 +68,6 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
     { id: "gps",            label: "GPS Live",         icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "delegates",      label: "Délégués",         icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "pharmacies",     label: "Pharmacies",       icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pharmacies-map", label: "Carte Pharmacies", icon: Map,             roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "planning",       label: "Planning",         icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "reports",        label: "Rapports",         icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "products",       label: "Produits",         icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
@@ -90,7 +88,6 @@ export default function AdminDashboard({ selectedLab, onChangeLab }: Props) {
       case "gps":            return <GPSMapTab />;
       case "delegates":      return <DelegatesTab />;
       case "pharmacies":     return <PharmaciesTab />;
-      case "pharmacies-map": return <PharmaciesMapTab />;
       case "planning":       return <PlanningTab />;
       case "reports":        return <ReportsTab />;
       case "products":       return <ProductsTab />;
