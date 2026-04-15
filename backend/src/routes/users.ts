@@ -8,19 +8,20 @@ const prisma = new PrismaClient();
 
 const ALLOWED_LABS = ["lic-pharma", "croient"];
 
-// ── Liste des utilisateurs ───────────────────────────────────
-router.get("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+// ── Routes fixes (AVANT les routes avec :id) ─────────────────
+
+// Liste des utilisateurs
+router.get("/", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
   try {
     const where: any = {};
-    // ADMIN voit seulement les users de ses labos
     if (req.user!.role === "ADMIN") {
       const labIds = await prisma.laboratory.findMany({
         where:  { name: { in: req.user!.labs || [] } },
         select: { id: true },
       });
       where.OR = [
-        { adminLabs: { some: { laboratoryId: { in: labIds.map(l => l.id) } } } },
-        { delegate:  { laboratoryId: { in: labIds.map(l => l.id) } } },
+        { adminLabs: { some: { laboratoryId: { in: labIds.map((l) => l.id) } } } },
+        { delegate:  { laboratoryId: { in: labIds.map((l) => l.id) } } },
       ];
     }
     const users = await prisma.user.findMany({
@@ -39,8 +40,8 @@ router.get("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: Au
   }
 });
 
-// ── Créer un utilisateur ─────────────────────────────────────
-router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+// Créer un utilisateur
+router.post("/", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
   try {
     const { email, password, firstName, lastName, role, labs, zone, phone } = req.body;
 
@@ -48,8 +49,6 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
       return res.status(400).json({ error: "Champs obligatoires manquants" });
     if (password.length < 6)
       return res.status(400).json({ error: "Le mot de passe doit avoir au moins 6 caractères" });
-
-    // ADMIN ne peut pas créer SUPER_ADMIN
     if (req.user!.role === "ADMIN" && role === "SUPER_ADMIN")
       return res.status(403).json({ error: "Accès refusé" });
 
@@ -98,23 +97,23 @@ router.post("/", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: A
     }
 
     res.status(201).json({ message: "Utilisateur créé avec succès", user });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Create user error:", err);
     res.status(500).json({ error: "Erreur serveur lors de la création" });
   }
 });
 
-// ── Mettre à jour son profil (nom + photo) ───────────────────
+// Mettre à jour son profil
 router.patch("/me/profile", authenticate, async (req: AuthRequest, res) => {
   try {
     const { firstName, lastName, avatar } = req.body;
     const data: any = {};
     if (firstName?.trim()) data.firstName = firstName.trim();
     if (lastName?.trim())  data.lastName  = lastName.trim();
-    if (avatar !== undefined) data.avatar = avatar; // base64 ou URL
+    if (avatar !== undefined) data.avatar = avatar;
 
     const updated = await prisma.user.update({
-      where: { id: req.user!.id },
+      where:  { id: req.user!.id },
       data,
       select: { id: true, firstName: true, lastName: true, email: true, role: true, avatar: true },
     });
@@ -124,7 +123,7 @@ router.patch("/me/profile", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// ── Changer son mot de passe ─────────────────────────────────
+// Changer son mot de passe
 router.patch("/me/password", authenticate, async (req: AuthRequest, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -147,72 +146,68 @@ router.patch("/me/password", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// ── Activer / désactiver ─────────────────────────────────────
-router.patch("/:id/toggle", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+// Déconnecter TOUS les utilisateurs (AVANT /:id pour éviter le conflit)
+router.delete("/sessions/all", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    await prisma.activeSession.deleteMany({ where: { userId: { not: req.user!.id } } });
+    res.json({ message: "Tous les utilisateurs déconnectés" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Routes avec :id (APRÈS les routes fixes) ─────────────────
+
+// Activer / désactiver
+router.patch("/:id/toggle", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
   try {
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!target) return res.status(404).json({ error: "Utilisateur non trouvé" });
-    // ADMIN ne peut pas désactiver un SUPER_ADMIN
     if (req.user!.role === "ADMIN" && target.role === "SUPER_ADMIN")
       return res.status(403).json({ error: "Accès refusé" });
+
     const updated = await prisma.user.update({
       where: { id: req.params.id },
       data:  { isActive: !target.isActive },
     });
     res.json(updated);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
-// ── Déconnecter un utilisateur ───────────────────────────────
-router.delete("/:id/session", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req, res) => {
+// Déconnecter un utilisateur spécifique
+router.delete("/:id/session", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
   try {
     await prisma.activeSession.deleteMany({ where: { userId: req.params.id } });
     res.json({ message: "Utilisateur déconnecté" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
-// ── Déconnecter tous ─────────────────────────────────────────
-router.delete("/sessions/all", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
-  try {
-    await prisma.activeSession.deleteMany({ where: { userId: { not: req.user!.id } } });
-    res.json({ message: "Tous les utilisateurs déconnectés" });
-  } catch (err) {
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});
-// Ajouter cette route dans backend/src/routes/users.ts
-// AVANT export default router
-
-// ── Supprimer complètement un utilisateur ────────────────────
+// Supprimer complètement un utilisateur
 router.delete("/:id", authenticate, requireRole("SUPER_ADMIN"), async (req: AuthRequest, res) => {
   try {
     if (req.params.id === req.user!.id)
       return res.status(400).json({ error: "Impossible de supprimer votre propre compte" });
 
-    // Supprimer dans l'ordre pour éviter les erreurs FK
     await prisma.activeSession.deleteMany({ where: { userId: req.params.id } });
     await prisma.loginHistory.deleteMany({ where: { userId: req.params.id } });
     await prisma.message.deleteMany({
-      where: { OR: [{ senderId: req.params.id }, { receiverId: req.params.id }] }
+      where: { OR: [{ senderId: req.params.id }, { receiverId: req.params.id }] },
     });
     await prisma.pushSubscription.deleteMany({ where: { userId: req.params.id } });
     await prisma.adminLaboratory.deleteMany({ where: { userId: req.params.id } });
-    
-    // Supprimer les données du délégué si applicable
+
     const delegate = await prisma.delegate.findUnique({ where: { userId: req.params.id } });
     if (delegate) {
       await prisma.delegateObjective.deleteMany({ where: { delegateId: delegate.id } });
       await prisma.weeklyPlanning.deleteMany({ where: { delegateId: delegate.id } });
       await prisma.gPSLog.deleteMany({ where: { delegateId: delegate.id } });
-      // Mettre à null les rapports plutôt que de les supprimer
-      await prisma.visitReport.updateMany({
-        where: { delegateId: delegate.id },
-        data:  { delegateId: delegate.id }, // garder les rapports
-      });
       await prisma.delegate.delete({ where: { userId: req.params.id } });
     }
 
