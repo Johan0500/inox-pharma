@@ -1,6 +1,6 @@
 import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -145,6 +145,47 @@ router.get("/:id", authenticate, async (req, res) => {
     if (!pharmacy) return res.status(404).json({ error: "Pharmacie non trouvée" });
     res.json(pharmacy);
   } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Créer une pharmacie ───────────────────────────────────────
+router.post("/create", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { nom, pharmacien, adresse, ville, region, telephone, email, codeClient, grossisteName, newGrossiste } = req.body;
+    if (!nom?.trim()) return res.status(400).json({ error: "Le nom est obligatoire" });
+
+    let grossisteId: string | undefined;
+
+    // Créer un nouveau grossiste si demandé
+    if (newGrossiste?.trim()) {
+      let g = await prisma.grossiste.findFirst({ where: { name: { equals: newGrossiste.trim(), mode: "insensitive" } } });
+      if (!g) g = await prisma.grossiste.create({ data: { name: newGrossiste.trim() } });
+      grossisteId = g.id;
+    } else if (grossisteName?.trim()) {
+      const g = await prisma.grossiste.findFirst({ where: { name: { equals: grossisteName.trim(), mode: "insensitive" } } });
+      if (g) grossisteId = g.id;
+    }
+
+    const pharmacy = await prisma.pharmacy.create({
+      data: {
+        nom:        nom.trim(),
+        pharmacien: pharmacien?.trim() || null,
+        adresse:    adresse?.trim()    || null,
+        ville:      ville?.trim()      || null,
+        region:     region?.trim()     || null,
+        telephone:  telephone?.trim()  || null,
+        email:      email?.trim()      || null,
+        codeClient: codeClient?.trim() || null,
+        grossisteId: grossisteId       || null,
+      },
+      include: { grossiste: { select: { name: true } } },
+    });
+
+    res.status(201).json({ message: "Pharmacie créée", pharmacy });
+  } catch (err: any) {
+    if (err.code === "P2002") return res.status(409).json({ error: "Cette pharmacie existe déjà pour ce grossiste" });
+    console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
