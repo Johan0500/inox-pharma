@@ -1,19 +1,19 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import api from "../services/api";
 
 interface LabContextType {
-  selectedLab: string;
+  selectedLab:    string;
   setSelectedLab: (lab: string) => void;
-  labName: string;
-  labColor: string;
+  labName:        string;
+  labColor:       string;
 }
 
-const LAB_NAMES: Record<string, string> = {
+const FIXED_NAMES: Record<string, string> = {
   "lic-pharma": "LIC PHARMA",
   "croient":    "CROIENT",
   "all":        "VUE GLOBALE",
 };
-
-const LAB_COLORS: Record<string, string> = {
+const FIXED_COLORS: Record<string, string> = {
   "lic-pharma": "#065f46",
   "croient":    "#1e40af",
   "all":        "#064e3b",
@@ -27,15 +27,26 @@ const LabContext = createContext<LabContextType>({
 });
 
 export function LabProvider({ children, initialLab = "all" }: { children: ReactNode; initialLab?: string }) {
-  const [selectedLab, setSelectedLab] = useState(initialLab);
+  const [selectedLab,  setSelectedLab]  = useState(initialLab);
+  const [dynamicLabs,  setDynamicLabs]  = useState<Record<string, { name: string; color: string }>>({});
+
+  // Charger les labos dynamiques une seule fois
+  useEffect(() => {
+    api.get("/laboratories").then(r => {
+      const map: Record<string, { name: string; color: string }> = {};
+      (r.data || []).forEach((l: any) => {
+        const key = l.name.toLowerCase();
+        map[key] = { name: l.name.toUpperCase(), color: l.color || "#064e3b" };
+      });
+      setDynamicLabs(map);
+    }).catch(() => {});
+  }, []);
+
+  const labName  = FIXED_NAMES[selectedLab]  || dynamicLabs[selectedLab]?.name  || selectedLab.toUpperCase();
+  const labColor = FIXED_COLORS[selectedLab] || dynamicLabs[selectedLab]?.color || "#064e3b";
 
   return (
-    <LabContext.Provider value={{
-      selectedLab,
-      setSelectedLab,
-      labName:  LAB_NAMES[selectedLab]  || selectedLab,
-      labColor: LAB_COLORS[selectedLab] || "#064e3b",
-    }}>
+    <LabContext.Provider value={{ selectedLab, setSelectedLab, labName, labColor }}>
       {children}
     </LabContext.Provider>
   );

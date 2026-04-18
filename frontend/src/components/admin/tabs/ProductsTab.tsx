@@ -1,6 +1,6 @@
 import { useState }                              from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Package, Search, ChevronRight, Plus, X, Layers } from "lucide-react";
+import { Package, Search, ChevronRight, Plus, X } from "lucide-react";
 import api          from "../../../services/api";
 import { useAuth }  from "../../../contexts/AuthContext";
 import { useLab }   from "../../../contexts/LabContext";
@@ -40,7 +40,7 @@ const COLORS: Record<string, string> = {
 
 export default function ProductsTab() {
   const { user }           = useAuth();
-  const { labName }        = useLab();
+  useLab(); // contexte labo actif
   const qc                 = useQueryClient();
   const isSuperAdmin       = user?.role === "SUPER_ADMIN";
   const isAdmin            = user?.role === "ADMIN";
@@ -59,13 +59,6 @@ export default function ProductsTab() {
   const [addLab,       setAddLab]       = useState("croient");
   const [addError,     setAddError]     = useState("");
   const [addSuccess,   setAddSuccess]   = useState("");
-
-  // Modal ajout laboratoire (super admin seulement)
-  const [showAddLab,   setShowAddLab]   = useState(false);
-  const [newLabName,   setNewLabName]   = useState("");
-  const [newLabColor,  setNewLabColor]  = useState("#059669");
-  const [labError,     setLabError]     = useState("");
-  const [labSuccess,   setLabSuccess]   = useState("");
 
   // Produits dynamiques depuis l'API
   const { data: dbProducts } = useQuery({
@@ -90,17 +83,6 @@ export default function ProductsTab() {
       setTimeout(() => { setShowAdd(false); setAddSuccess(""); }, 1500);
     },
     onError: (e: any) => setAddError(e?.response?.data?.error || "Erreur lors de l'ajout"),
-  });
-
-  const addLabMut = useMutation({
-    mutationFn: (body: any) => api.post("/laboratories/create", body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["laboratories"] });
-      setLabSuccess("Laboratoire créé avec succès !");
-      setNewLabName(""); setNewLabColor("#059669");
-      setTimeout(() => { setShowAddLab(false); setLabSuccess(""); }, 1500);
-    },
-    onError: (e: any) => setLabError(e?.response?.data?.error || "Erreur lors de la création"),
   });
 
   // ── Construire catalogue selon la vue active ─────────────
@@ -218,13 +200,6 @@ export default function ProductsTab() {
               <button onClick={() => { setShowAdd(true); setAddError(""); setAddSuccess(""); setAddName(""); setAddSpec(""); }}
                 style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.2)", border:"1px solid rgba(255,255,255,0.3)", borderRadius:10, padding:"8px 16px", color:"white", fontSize:13, fontWeight:600, cursor:"pointer" }}>
                 <Plus size={15} /> Ajouter un produit
-              </button>
-            )}
-            {/* Bouton Nouveau labo (super admin seulement) */}
-            {isSuperAdmin && (
-              <button onClick={() => { setShowAddLab(true); setLabError(""); setLabSuccess(""); }}
-                style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:10, padding:"8px 16px", color:"rgba(255,255,255,0.85)", fontSize:13, cursor:"pointer" }}>
-                <Layers size={15} /> Nouveau laboratoire
               </button>
             )}
           </div>
@@ -402,52 +377,6 @@ export default function ProductsTab() {
                   {addProductMut.isPending ? "Ajout..." : "Ajouter"}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL AJOUTER LABORATOIRE (Super Admin) ── */}
-      {showAddLab && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center"><Layers size={16} className="text-purple-600" /></div>
-                <h3 className="font-bold text-gray-800">Nouveau Laboratoire</h3>
-              </div>
-              <button onClick={() => setShowAddLab(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-            </div>
-            {labError   && <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-2 text-sm mb-3">{labError}</div>}
-            {labSuccess && <div className="bg-green-50 text-green-700 border border-green-200 rounded-xl px-4 py-2 text-sm mb-3">{labSuccess}</div>}
-            <p className="text-sm text-gray-500 mb-4">Le nouveau labo sera automatiquement disponible dans toutes les fonctionnalités de l'application.</p>
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Nom du laboratoire <span className="text-red-500">*</span></label>
-                <input value={newLabName} onChange={(e) => setNewLabName(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-purple-400 outline-none"
-                  placeholder="Ex : PHARMADEV, MEDLAB..." />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Couleur du labo</label>
-                <div className="flex items-center gap-3">
-                  <input type="color" value={newLabColor} onChange={(e) => setNewLabColor(e.target.value)}
-                    className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
-                  <span className="text-sm text-gray-600">Couleur d'interface pour ce labo</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowAddLab(false)}
-                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={() => {
-                setLabError(""); setLabSuccess("");
-                if (!newLabName.trim()) return setLabError("Le nom est obligatoire");
-                addLabMut.mutate({ name: newLabName.trim(), color: newLabColor });
-              }} disabled={addLabMut.isPending}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-bold transition disabled:opacity-60">
-                {addLabMut.isPending ? "Création..." : "Créer le laboratoire"}
-              </button>
             </div>
           </div>
         </div>
