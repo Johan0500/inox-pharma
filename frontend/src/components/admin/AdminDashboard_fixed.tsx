@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, Calendar,
   FileText, Package, BarChart3, Settings, LogOut,
   TrendingUp, DollarSign, MessageCircle, Shield,
-  Lock, Target, ArrowLeft, Mail, BookOpen,
+  Lock, Target, ArrowLeft, Mail, BookOpen, MapPin,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api          from "../../services/api";
@@ -52,6 +52,7 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
     { id: "overview",       label: "Accueil",        icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "delegates",      label: "Délégués",        icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "pharmacies",     label: "Pharmacies",      icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "gps",            label: "GPS Temps Réel",  icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "planning",       label: "Planning",        icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "reports",        label: "Rapports",        icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "products",       label: "Produits",        icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
@@ -71,6 +72,7 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
       case "overview":       return <OverviewTab />;
       case "delegates":      return <DelegatesTab />;
       case "pharmacies":     return <PharmaciesTab />;
+      case "gps":            return <GPSMapTab />;
       case "planning":       return <PlanningTab />;
       case "reports":        return <ReportsTab />;
       case "products":       return <ProductsTab />;
