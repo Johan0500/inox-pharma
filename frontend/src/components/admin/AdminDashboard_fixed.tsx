@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Building2, Calendar,
   FileText, Package, BarChart3, Settings, LogOut,
   TrendingUp, DollarSign, MessageCircle, Shield,
-  Lock, Target, ArrowLeft, Mail, BookOpen, MapPin,
+  Lock, Target, ArrowLeft, Mail, BookOpen, MapPin, User,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api          from "../../services/api";
@@ -27,6 +27,7 @@ import StrategieTab      from "./tabs/StrategieTab";
 import EmailScheduleTab  from "./tabs/EmailScheduleTab";
 import GPSMapTab         from "./tabs/GPSMapTab";
 import ChangePasswordModal    from "../shared/ChangePasswordModal";
+import ProfileModal            from "../shared/ProfileModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
 
 interface Props {
@@ -40,6 +41,7 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [showPwd,   setShowPwd]   = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey:        ["unread-count-admin"],
@@ -192,6 +194,13 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
               <p style={{ color:"rgba(255,255,255,0.55)", fontSize:10, margin:0 }}>{user?.email}</p>
             </div>
           )}
+          <button onClick={() => setShowProfile(true)} title={collapsed ? "Mon profil" : undefined}
+            style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:"none",
+              color:"rgba(255,255,255,0.65)", cursor:"pointer", padding:"8px 10px", borderRadius:10,
+              fontSize:12, justifyContent:collapsed?"center":"flex-start", width:"100%", transition:"all 0.15s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background="rgba(255,255,255,0.1)"; e.currentTarget.style.color="white"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background="transparent"; e.currentTarget.style.color="rgba(255,255,255,0.65)"; }}
+          ><User size={14} />{!collapsed && "Mon profil"}</button>
           <button onClick={() => setShowPwd(true)} title={collapsed ? "Changer mot de passe" : undefined}
             style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:"none",
               color:"rgba(255,255,255,0.65)", cursor:"pointer", padding:"8px 10px", borderRadius:10,
@@ -234,7 +243,8 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
         <div style={{ padding:24 }}>{renderTab()}</div>
       </main>
 
-      {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
+      {showPwd     && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
+      {showProfile && <ProfileModal       onClose={() => setShowProfile(false)} />}
     </div>
   );
 }
