@@ -3,7 +3,7 @@ import { useAuth }             from "../../contexts/AuthContext";
 import {
   FileText, Calendar, Package,
   LogOut, MessageCircle, Target, LayoutDashboard,
-  History, BarChart3, User, Lock,
+  History, BarChart3, User, Lock, BookOpen,
 } from "lucide-react";
 import { useQuery }      from "@tanstack/react-query";
 import api               from "../../services/api";
@@ -21,6 +21,7 @@ import MyStats        from "./MyStats";
 import MyProfile      from "./MyProfile";
 import ChangePasswordModal from "../shared/ChangePasswordModal";
 import ProfileModal        from "../shared/ProfileModal";
+import MyStrategie from "./MyStrategie";
 
 // GPS retiré de la navigation — il tourne en arrière-plan invisible
 const TABS = [
@@ -30,6 +31,7 @@ const TABS = [
   { id: "history",    label: "Historique", icon: History         },
   { id: "messages",   label: "Messages",   icon: MessageCircle   },
   { id: "objectives", label: "Objectifs",  icon: Target          },
+  { id: "strategie",  label: "Stratégie",  icon: BookOpen        },  // ← NOUVEAU
   { id: "stats",      label: "Stats",      icon: BarChart3       },
   { id: "products",   label: "Produits",   icon: Package         },
   { id: "profile",    label: "Profil",     icon: User            },
@@ -75,6 +77,7 @@ export default function DelegateView() {
       case "history":    return <MyVisitHistory />;
       case "messages":   return <MyMessages     />;
       case "objectives": return <MyObjectives   />;
+      case "strategie":  return <MyStrategie    />;
       case "stats":      return <MyStats        />;
       case "products":   return <MyProducts     />;
       case "profile":    return <MyProfile      />;

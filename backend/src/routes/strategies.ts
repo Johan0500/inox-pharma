@@ -11,18 +11,30 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
   try {
     const { laboratoryId, delegateId } = req.query as Record<string, string>;
     const where: any = {};
-
+ 
     if (req.user!.role === "ADMIN") {
-      const labIds = await prisma.laboratory.findMany({
-        where:  { name: { in: req.user!.labs || [] } },
-        select: { id: true },
+      // L'admin voit uniquement les stratégies de son/ses labos
+      const labIds = await prisma.adminLaboratory.findMany({
+        where:  { userId: req.user!.id },
+        select: { laboratoryId: true },
       });
-      where.laboratoryId = { in: labIds.map((l) => l.id) };
+      where.laboratoryId = { in: labIds.map((l) => l.laboratoryId) };
     }
-
-    if (laboratoryId) where.laboratoryId = laboratoryId;
-    if (delegateId)   where.delegateId   = delegateId;
-
+ 
+    if (req.user!.role === "DELEGATE") {
+      // Le délégué voit uniquement les stratégies de son labo
+      const delegate = await prisma.delegate.findUnique({
+        where:  { userId: req.user!.id },
+        select: { laboratoryId: true },
+      });
+      if (!delegate) return res.status(404).json({ error: "Délégué non trouvé" });
+      where.laboratoryId = delegate.laboratoryId;
+    }
+ 
+    // Filtres supplémentaires (pour les appels admin/superadmin)
+    if (laboratoryId && req.user!.role !== "DELEGATE") where.laboratoryId = laboratoryId;
+    if (delegateId)   where.delegateId = delegateId;
+ 
     const strategies = await prisma.strategy.findMany({
       where,
       include: {
@@ -31,7 +43,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-
+ 
     res.json(strategies);
   } catch (err) {
     console.error(err);
