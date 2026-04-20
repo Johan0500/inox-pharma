@@ -406,39 +406,62 @@ router.get("/stats", authenticate, requireRole("SUPER_ADMIN"), async (req, res) 
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
-// ROUTES À AJOUTER dans backend/src/routes/salesReports.ts
-// Coller ces 2 routes AVANT la ligne `export default router;`
+// REMPLACER les 2 routes target-ca et ca-dashboard dans
+// backend/src/routes/salesReports.ts
+// (juste avant export default router)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Définir / Modifier l'objectif CA du mois courant ─────────────────────────
+// ── Définir / Modifier l'objectif CA ─────────────────────────────────────────
 //   POST /sales-reports/target-ca
-//   Body : { targetCA: number }
-//   Crée le rapport du mois si inexistant, puis met à jour targetCA
+//   Body : { targetCA: number, laboratoryId?: string }
+//   - ADMIN       : laboratoryId ignoré, on prend son propre labo
+//   - SUPER_ADMIN : laboratoryId obligatoire (il choisit le labo)
 // ─────────────────────────────────────────────────────────────────────────────
-router.post("/target-ca", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+router.post("/target-ca", authenticate, requireRole("ADMIN", "SUPER_ADMIN"), async (req: AuthRequest, res) => {
   try {
-    const { targetCA } = req.body;
+    const { targetCA, laboratoryId: bodyLabId } = req.body;
+
     if (typeof targetCA !== "number" || targetCA < 0)
       return res.status(400).json({ error: "targetCA doit être un nombre positif" });
 
     const { month, year } = getMonthYear();
+    let laboratoryId: string;
+    let adminId: string;
 
-    const labId = await prisma.adminLaboratory.findFirst({
-      where:  { userId: req.user!.id },
-      select: { laboratoryId: true },
-    });
-    if (!labId) return res.status(404).json({ error: "Laboratoire non trouvé" });
+    if (req.user!.role === "SUPER_ADMIN") {
+      // Le super admin doit préciser le labo
+      if (!bodyLabId)
+        return res.status(400).json({ error: "laboratoryId requis pour le Super Admin" });
+      laboratoryId = bodyLabId;
 
-    // Upsert du rapport du mois
+      // On cherche l'admin de ce labo pour associer le rapport
+      const adminLab = await prisma.adminLaboratory.findFirst({
+        where:  { laboratoryId },
+        select: { userId: true },
+      });
+      // Si pas d'admin pour ce labo, on utilise l'id du super admin lui-même
+      adminId = adminLab?.userId || req.user!.id;
+    } else {
+      // ADMIN : on prend son propre labo
+      const labId = await prisma.adminLaboratory.findFirst({
+        where:  { userId: req.user!.id },
+        select: { laboratoryId: true },
+      });
+      if (!labId) return res.status(404).json({ error: "Laboratoire non trouvé" });
+      laboratoryId = labId.laboratoryId;
+      adminId      = req.user!.id;
+    }
+
+    // Cherche le rapport existant pour ce labo + ce mois
     let report = await prisma.salesReport.findFirst({
-      where: { adminId: req.user!.id, month, year },
+      where: { laboratoryId, month, year },
     });
 
     if (!report) {
       report = await prisma.salesReport.create({
         data: {
-          adminId:      req.user!.id,
-          laboratoryId: labId.laboratoryId,
+          adminId,
+          laboratoryId,
           month,
           year,
           targetCA,
@@ -467,89 +490,124 @@ router.post("/target-ca", authenticate, requireRole("ADMIN"), async (req: AuthRe
 });
 
 // ── Tableau de bord Objectif CA ───────────────────────────────────────────────
-//   GET /sales-reports/ca-dashboard
-//   Retourne toutes les métriques nécessaires à l'onglet Objectif
+//   GET /sales-reports/ca-dashboard?laboratoryId=xxx
+//   - ADMIN       : voit son propre labo (laboratoryId ignoré)
+//   - SUPER_ADMIN : si laboratoryId → dashboard de ce labo
+//                   si laboratoryId=all → tous les labos (lecture seule)
+//   - DELEGATE    : voit le CA de son propre labo (lecture seule)
 // ─────────────────────────────────────────────────────────────────────────────
-router.get("/ca-dashboard", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+router.get("/ca-dashboard", authenticate, async (req: AuthRequest, res) => {
   try {
     const { month, year } = getMonthYear();
+    const role = req.user!.role;
+
+    // ── VUE GLOBALE super admin (laboratoryId=all) ────────────────────────────
+    if (role === "SUPER_ADMIN" && req.query.laboratoryId === "all") {
+      const allReports = await prisma.salesReport.findMany({
+        where:   { month, year },
+        include: { lines: true, laboratory: true },
+      });
+
+      const today          = new Date();
+      const totalJoursMois = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      const jourDonnees    = today.getDate() - 1;
+      const joursRestants  = totalJoursMois - jourDonnees;
+
+      const labos = allReports.map((r) => {
+        const caRealise         = sumCA(r.lines);
+        const targetCA          = r.targetCA ?? 0;
+        const caRestant         = Math.max(targetCA - caRealise, 0);
+        const rythmeActuel      = jourDonnees > 0 ? Math.round(caRealise / jourDonnees) : 0;
+        const rythmeNecessaire  = joursRestants > 0 ? Math.round(caRestant / joursRestants) : 0;
+        const progressPct       = targetCA > 0 ? Math.round((caRealise / targetCA) * 100) : null;
+        const projectionFinMois = rythmeActuel * totalJoursMois;
+
+        let statut: "EN_AVANCE" | "EN_RETARD" | "ATTEINT" | "PAS_OBJECTIF" = "PAS_OBJECTIF";
+        if (targetCA > 0) {
+          if (caRealise >= targetCA) statut = "ATTEINT";
+          else statut = rythmeActuel >= targetCA / totalJoursMois ? "EN_AVANCE" : "EN_RETARD";
+        }
+
+        return {
+          laboratoryId:   r.laboratoryId,
+          laboratoryName: r.laboratory.name,
+          targetCA, caRealise, caRestant, progressPct,
+          rythmeActuel, rythmeNecessaire, projectionFinMois, statut,
+        };
+      });
+
+      return res.json({
+        mode: "global",
+        canEdit: false,
+        today: today.toISOString().slice(0, 10),
+        jourDonnees, joursRestants, totalJoursMois,
+        labos,
+      });
+    }
+
+    // ── RÉSOLUTION du laboratoryId selon le rôle ──────────────────────────────
+    let laboratoryId: string | null = null;
+
+    if (role === "SUPER_ADMIN") {
+      laboratoryId = req.query.laboratoryId as string || null;
+      if (!laboratoryId)
+        return res.status(400).json({ error: "laboratoryId requis" });
+    } else if (role === "ADMIN") {
+      const labId = await prisma.adminLaboratory.findFirst({
+        where:  { userId: req.user!.id },
+        select: { laboratoryId: true },
+      });
+      if (!labId) return res.status(404).json({ error: "Laboratoire non trouvé" });
+      laboratoryId = labId.laboratoryId;
+    } else if (role === "DELEGATE") {
+      // Le délégué voit le CA de son propre labo
+      const delegate = await prisma.delegate.findUnique({
+        where:  { userId: req.user!.id },
+        select: { laboratoryId: true },
+      });
+      if (!delegate) return res.status(404).json({ error: "Délégué non trouvé" });
+      laboratoryId = delegate.laboratoryId;
+    }
+
+    if (!laboratoryId) return res.status(400).json({ error: "Laboratoire introuvable" });
 
     const report = await prisma.salesReport.findFirst({
-      where:   { adminId: req.user!.id, month, year },
-      include: { lines: true },
+      where:   { laboratoryId, month, year },
+      include: { lines: true, laboratory: true },
     });
 
-    // ── Calcul du CA réalisé ──────────────────────────────────
-    // Les chiffres ont 1 jour de décalage :
-    //   les données saisies aujourd'hui = ventes d'hier.
-    // Donc le CA "réalisé à date J" = somme des ventes du rapport courant.
-    const caRealise = report ? sumCA(report.lines) : 0;
-    const targetCA  = report?.targetCA ?? 0;
-
-    // ── Calcul temporel ───────────────────────────────────────
-    const today     = new Date();
-    const monthNum  = today.getMonth();     // mois JS (0-based)
-    const yearNum   = today.getFullYear();
-
-    const totalJoursMois   = new Date(yearNum, monthNum + 1, 0).getDate();
-
-    // Jour "réel" des données = hier (décalage J-1)
-    // Ex : si aujourd'hui = 15 avril → données disponibles jusqu'au 14 avril
-    const jourDonnees      = today.getDate() - 1;  // nb de jours avec données
-    const joursRestants    = totalJoursMois - jourDonnees; // jours à couvrir
-
-    // Rythme actuel : CA / jours avec données
-    const rythmeActuel     = jourDonnees > 0
-      ? Math.round(caRealise / jourDonnees)
-      : 0;
-
-    // CA restant à réaliser
-    const caRestant        = Math.max(targetCA - caRealise, 0);
-
-    // CA nécessaire par jour pour atteindre l'objectif sur les jours restants
+    const caRealise      = report ? sumCA(report.lines) : 0;
+    const targetCA       = report?.targetCA ?? 0;
+    const today          = new Date();
+    const totalJoursMois = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const jourDonnees    = today.getDate() - 1;
+    const joursRestants  = totalJoursMois - jourDonnees;
+    const rythmeActuel   = jourDonnees > 0 ? Math.round(caRealise / jourDonnees) : 0;
+    const caRestant      = Math.max(targetCA - caRealise, 0);
     const rythmeNecessaire = joursRestants > 0
       ? Math.round(caRestant / joursRestants)
       : caRestant > 0 ? Infinity : 0;
-
-    // Taux de progression
-    const progressPct      = targetCA > 0
-      ? Math.round((caRealise / targetCA) * 100)
-      : null;
-
-    // Projection fin de mois au rythme actuel
+    const progressPct      = targetCA > 0 ? Math.round((caRealise / targetCA) * 100) : null;
     const projectionFinMois = rythmeActuel * totalJoursMois;
 
-    // Statut : EN_AVANCE | EN_RETARD | ATTEINT | PAS_OBJECTIF
     let statut: "EN_AVANCE" | "EN_RETARD" | "ATTEINT" | "PAS_OBJECTIF" = "PAS_OBJECTIF";
     if (targetCA > 0) {
-      if (caRealise >= targetCA) {
-        statut = "ATTEINT";
-      } else {
-        // Rythme théorique : targetCA / totalJoursMois
-        const rythmeTheorique = targetCA / totalJoursMois;
-        statut = rythmeActuel >= rythmeTheorique ? "EN_AVANCE" : "EN_RETARD";
-      }
+      if (caRealise >= targetCA) statut = "ATTEINT";
+      else statut = rythmeActuel >= targetCA / totalJoursMois ? "EN_AVANCE" : "EN_RETARD";
     }
 
+    // Le super admin peut éditer dans un labo spécifique, pas en vue globale
+    const canEdit = role === "ADMIN" || role === "SUPER_ADMIN";
+
     res.json({
-      // Contexte temporel
-      today:             today.toISOString().slice(0, 10),
-      jourDonnees,            // nbre de jours avec données (J-1)
-      joursRestants,          // jours restants dans le mois
-      totalJoursMois,
-
-      // Financier
-      targetCA,
-      caRealise,
-      caRestant,
-      progressPct,
-
-      // Rythmes
-      rythmeActuel,           // FCFA/jour réalisé en moyenne
-      rythmeNecessaire,       // FCFA/jour nécessaire pour finir l'objectif
-      projectionFinMois,      // projection CA total si on maintient le rythme actuel
-
-      // Synthèse
+      mode: "single",
+      canEdit,
+      laboratoryId,
+      laboratoryName: report?.laboratory?.name ?? null,
+      today:          today.toISOString().slice(0, 10),
+      jourDonnees, joursRestants, totalJoursMois,
+      targetCA, caRealise, caRestant, progressPct,
+      rythmeActuel, rythmeNecessaire, projectionFinMois,
       statut,
       targetCASetAt: report?.targetCASetAt ?? null,
     });
@@ -558,6 +616,5 @@ router.get("/ca-dashboard", authenticate, requireRole("ADMIN"), async (req: Auth
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
-
 
 export default router;
