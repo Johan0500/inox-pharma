@@ -30,9 +30,9 @@ model User {
   createdBy         User?              @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers      User[]             @relation("UserCreator")
   strategies        Strategy[]
-  reportRecipient ReportRecipient?
-  emailSchedules         EmailSchedule[]
-  emailScheduleRecipients EmailScheduleRecipient[]
+  reportRecipient             ReportRecipient?
+  emailSchedules              EmailSchedule[]
+  emailScheduleRecipients     EmailScheduleRecipient[]
   avatar String?
 }
 
@@ -247,18 +247,20 @@ model VisitReport {
 }
 
 model SalesReport {
-  id           String            @id @default(cuid())
-  adminId      String
-  laboratoryId String
-  month        String
-  year         Int
-  status       SalesReportStatus @default(DRAFT)
-  submittedAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  admin        User              @relation(fields: [adminId], references: [id])
-  laboratory   Laboratory        @relation(fields: [laboratoryId], references: [id])
-  lines        SalesReportLine[]
+  id            String            @id @default(cuid())
+  adminId       String
+  laboratoryId  String
+  month         String
+  year          Int
+  status        SalesReportStatus @default(DRAFT)
+  submittedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  targetCA      Float             @default(0)
+  targetCASetAt DateTime?
+  admin         User              @relation(fields: [adminId], references: [id])
+  laboratory    Laboratory        @relation(fields: [laboratoryId], references: [id])
+  lines         SalesReportLine[]
 }
 
 model SalesReportLine {
@@ -326,19 +328,18 @@ model Strategy {
   createdById   String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  laboratory Laboratory @relation(fields: [laboratoryId], references: [id])
-  createdBy  User       @relation(fields: [createdById], references: [id])
+  laboratory    Laboratory @relation(fields: [laboratoryId], references: [id])
+  createdBy     User       @relation(fields: [createdById], references: [id])
 }
 
 model ReportConfig {
-  id           String   @id @default(cuid())
-  sendHour     Int      @default(9)   // heure d'envoi (0-23)
-  sendMinute   Int      @default(30)  // minute d'envoi
-  isActive     Boolean  @default(true)
-  recipients   ReportRecipient[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String            @id @default(cuid())
+  sendHour   Int               @default(9)
+  sendMinute Int               @default(30)
+  isActive   Boolean           @default(true)
+  recipients ReportRecipient[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 }
 
 model ReportRecipient {
@@ -348,16 +349,17 @@ model ReportRecipient {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   reportConfig   ReportConfig @relation(fields: [reportConfigId], references: [id], onDelete: Cascade)
 }
+
 model EmailSchedule {
-  id           String   @id @default(cuid())
-  hour         Int      @default(9)
-  minute       Int      @default(30)
-  isActive     Boolean  @default(true)
-  recipients   EmailScheduleRecipient[]
-  createdById  String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    User     @relation(fields: [createdById], references: [id])
+  id          String                   @id @default(cuid())
+  hour        Int                      @default(9)
+  minute      Int                      @default(30)
+  isActive    Boolean                  @default(true)
+  recipients  EmailScheduleRecipient[]
+  createdById String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  createdBy   User                     @relation(fields: [createdById], references: [id])
 }
 
 model EmailScheduleRecipient {
@@ -366,5 +368,6 @@ model EmailScheduleRecipient {
   userId     String
   schedule   EmailSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([scheduleId, userId])
 }

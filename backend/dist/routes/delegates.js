@@ -5,17 +5,39 @@ const client_1 = require("@prisma/client");
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 const prisma = new client_1.PrismaClient();
+// ── Liste des délégués ───────────────────────────────────────
 router.get("/", auth_1.authenticate, (0, auth_1.requireRole)("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     try {
-        const where = req.user.role === "ADMIN"
-            ? { laboratory: { name: { in: req.user.labs || [] } } }
-            : {};
+        const labName = req.headers["x-lab"];
+        const where = {};
+        if (req.user.role === "ADMIN") {
+            // Admin → uniquement ses laboratoires
+            const labs = await prisma.laboratory.findMany({
+                where: { name: { in: req.user.labs || [] } },
+                select: { id: true },
+            });
+            where.laboratoryId = { in: labs.map((l) => l.id) };
+        }
+        else if (req.user.role === "SUPER_ADMIN" && labName && labName !== "all") {
+            // Super Admin → filtre par lab sélectionné (header x-lab)
+            const lab = await prisma.laboratory.findFirst({ where: { name: labName } });
+            if (lab)
+                where.laboratoryId = lab.id;
+        }
         const delegates = await prisma.delegate.findMany({
             where,
             include: {
-                user: { select: { firstName: true, lastName: true, email: true, isActive: true } },
+                user: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        isActive: true,
+                        activeSessions: { select: { lastActive: true } },
+                    },
+                },
                 laboratory: { select: { name: true } },
-                sector: true,
+                sector: { select: { zoneResidence: true } },
             },
             orderBy: { createdAt: "desc" },
         });
@@ -25,6 +47,7 @@ router.get("/", auth_1.authenticate, (0, auth_1.requireRole)("SUPER_ADMIN", "ADM
         res.status(500).json({ error: "Erreur serveur" });
     }
 });
+// ── Profil du délégué connecté ───────────────────────────────
 router.get("/me", auth_1.authenticate, async (req, res) => {
     try {
         const delegate = await prisma.delegate.findUnique({

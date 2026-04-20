@@ -3,19 +3,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setupGPSSocket = void 0;
+exports.setupGPSSocket = setupGPSSocket;
 const client_1 = require("@prisma/client");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma = new client_1.PrismaClient();
-const setupGPSSocket = (io) => {
-    // Middleware JWT pour Socket.io
-    io.use((socket, next) => {
-        const token = socket.handshake.auth.token;
-        if (!token)
-            return next(new Error("Token manquant"));
+function setupGPSSocket(io) {
+    io.use(async (socket, next) => {
         try {
-            const user = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
-            socket.user = user;
+            const token = socket.handshake.auth.token;
+            if (!token)
+                return next(new Error("Token manquant"));
+            const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+            socket.userId = decoded.id;
+            socket.role = decoded.role;
+            socket.delegateId = decoded.delegateId;
             next();
         }
         catch {
@@ -23,66 +24,76 @@ const setupGPSSocket = (io) => {
         }
     });
     io.on("connection", (socket) => {
-        const user = socket.user;
-        console.log(`📡 Socket connecté: ${user.role} [${user.id}]`);
-        // ── Délégué envoie sa position ──────────────────────────
+        const userId = socket.userId;
+        const role = socket.role;
+        const delegateId = socket.delegateId;
+        console.log(`🔌 Connecté: ${userId} (${role})`);
+        // Rejoindre la salle admin
+        if (role === "SUPER_ADMIN" || role === "ADMIN") {
+            socket.join("admins");
+            console.log(`👑 Admin rejoint la salle admins`);
+        }
+        // Rejoindre la salle du délégué
+        if (delegateId) {
+            socket.join(`delegate_${delegateId}`);
+        }
         socket.on("send_location", async (data) => {
-            if (user.role !== "DELEGATE" || !user.delegateId)
-                return;
             try {
-                // Sauvegarder le log GPS en base MySQL
-                await prisma.gPSLog.create({
+                if (!delegateId)
+                    return;
+                const { latitude, longitude, status } = data;
+                // Mettre à jour la position du délégué en base
+                await prisma.delegate.update({
+                    where: { id: delegateId },
                     data: {
-                        delegateId: user.delegateId,
-                        latitude: data.latitude,
-                        longitude: data.longitude,
-                        status: data.status,
-                    },
-                });
-                // Mettre à jour la dernière position du délégué
-                const delegate = await prisma.delegate.update({
-                    where: { id: user.delegateId },
-                    data: {
-                        status: data.status,
-                        lastLat: data.latitude,
-                        lastLng: data.longitude,
+                        lastLat: latitude,
+                        lastLng: longitude,
+                        status: status,
                         lastSeen: new Date(),
                     },
-                    include: {
-                        user: { select: { firstName: true, lastName: true } },
+                });
+                // Enregistrer dans l'historique GPS
+                await prisma.gPSLog.create({
+                    data: {
+                        delegateId,
+                        latitude,
+                        longitude,
+                        status: status,
                     },
                 });
-                // Diffuser à tous les clients connectés (admins sur la carte)
-                io.emit("delegate_location_update", {
-                    delegateId: user.delegateId,
-                    name: `${delegate.user.firstName} ${delegate.user.lastName}`,
-                    zone: delegate.zone,
-                    latitude: data.latitude,
-                    longitude: data.longitude,
-                    status: data.status,
+                // Récupérer les infos du délégué
+                const delegate = await prisma.delegate.findUnique({
+                    where: { id: delegateId },
+                    include: { user: { select: { firstName: true, lastName: true } } },
+                });
+                // Envoyer la position à TOUS les admins connectés
+                io.to("admins").emit("delegate_location_update", {
+                    delegateId,
+                    name: `${delegate?.user.firstName} ${delegate?.user.lastName}`,
+                    zone: delegate?.zone,
+                    status,
+                    latitude,
+                    longitude,
                     timestamp: new Date().toISOString(),
                 });
+                console.log(`📍 Position reçue de ${delegateId}: ${latitude}, ${longitude}`);
             }
             catch (err) {
-                console.error("GPS socket error:", err);
+                console.error("Erreur GPS:", err);
             }
         });
-        // ── Délégué se déconnecte ───────────────────────────────
         socket.on("disconnect", async () => {
-            if (user.role === "DELEGATE" && user.delegateId) {
-                await prisma.delegate
-                    .update({
-                    where: { id: user.delegateId },
-                    data: { status: "INACTIF" },
-                })
-                    .catch(() => { });
-                io.emit("delegate_offline", {
-                    delegateId: user.delegateId,
-                    timestamp: new Date().toISOString(),
-                });
-                console.log(`📴 Délégué déconnecté: ${user.delegateId}`);
+            console.log(`🔌 Déconnecté: ${userId}`);
+            if (delegateId) {
+                try {
+                    await prisma.delegate.update({
+                        where: { id: delegateId },
+                        data: { status: "INACTIF" },
+                    });
+                    io.to("admins").emit("delegate_offline", { delegateId });
+                }
+                catch { }
             }
         });
     });
-};
-exports.setupGPSSocket = setupGPSSocket;
+}

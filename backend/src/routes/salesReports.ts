@@ -405,5 +405,159 @@ router.get("/stats", authenticate, requireRole("SUPER_ADMIN"), async (req, res) 
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTES À AJOUTER dans backend/src/routes/salesReports.ts
+// Coller ces 2 routes AVANT la ligne `export default router;`
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Définir / Modifier l'objectif CA du mois courant ─────────────────────────
+//   POST /sales-reports/target-ca
+//   Body : { targetCA: number }
+//   Crée le rapport du mois si inexistant, puis met à jour targetCA
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/target-ca", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { targetCA } = req.body;
+    if (typeof targetCA !== "number" || targetCA < 0)
+      return res.status(400).json({ error: "targetCA doit être un nombre positif" });
+
+    const { month, year } = getMonthYear();
+
+    const labId = await prisma.adminLaboratory.findFirst({
+      where:  { userId: req.user!.id },
+      select: { laboratoryId: true },
+    });
+    if (!labId) return res.status(404).json({ error: "Laboratoire non trouvé" });
+
+    // Upsert du rapport du mois
+    let report = await prisma.salesReport.findFirst({
+      where: { adminId: req.user!.id, month, year },
+    });
+
+    if (!report) {
+      report = await prisma.salesReport.create({
+        data: {
+          adminId:      req.user!.id,
+          laboratoryId: labId.laboratoryId,
+          month,
+          year,
+          targetCA,
+          targetCASetAt: new Date(),
+          lines: {
+            create: PRODUCTS.map((p) => ({
+              itemNumber:  p.num,
+              designation: p.name,
+              pght:        p.pght,
+            })),
+          },
+        },
+      });
+    } else {
+      report = await prisma.salesReport.update({
+        where: { id: report.id },
+        data:  { targetCA, targetCASetAt: new Date() },
+      });
+    }
+
+    res.json({ success: true, targetCA: report.targetCA });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── Tableau de bord Objectif CA ───────────────────────────────────────────────
+//   GET /sales-reports/ca-dashboard
+//   Retourne toutes les métriques nécessaires à l'onglet Objectif
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/ca-dashboard", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { month, year } = getMonthYear();
+
+    const report = await prisma.salesReport.findFirst({
+      where:   { adminId: req.user!.id, month, year },
+      include: { lines: true },
+    });
+
+    // ── Calcul du CA réalisé ──────────────────────────────────
+    // Les chiffres ont 1 jour de décalage :
+    //   les données saisies aujourd'hui = ventes d'hier.
+    // Donc le CA "réalisé à date J" = somme des ventes du rapport courant.
+    const caRealise = report ? sumCA(report.lines) : 0;
+    const targetCA  = report?.targetCA ?? 0;
+
+    // ── Calcul temporel ───────────────────────────────────────
+    const today     = new Date();
+    const monthNum  = today.getMonth();     // mois JS (0-based)
+    const yearNum   = today.getFullYear();
+
+    const totalJoursMois   = new Date(yearNum, monthNum + 1, 0).getDate();
+
+    // Jour "réel" des données = hier (décalage J-1)
+    // Ex : si aujourd'hui = 15 avril → données disponibles jusqu'au 14 avril
+    const jourDonnees      = today.getDate() - 1;  // nb de jours avec données
+    const joursRestants    = totalJoursMois - jourDonnees; // jours à couvrir
+
+    // Rythme actuel : CA / jours avec données
+    const rythmeActuel     = jourDonnees > 0
+      ? Math.round(caRealise / jourDonnees)
+      : 0;
+
+    // CA restant à réaliser
+    const caRestant        = Math.max(targetCA - caRealise, 0);
+
+    // CA nécessaire par jour pour atteindre l'objectif sur les jours restants
+    const rythmeNecessaire = joursRestants > 0
+      ? Math.round(caRestant / joursRestants)
+      : caRestant > 0 ? Infinity : 0;
+
+    // Taux de progression
+    const progressPct      = targetCA > 0
+      ? Math.round((caRealise / targetCA) * 100)
+      : null;
+
+    // Projection fin de mois au rythme actuel
+    const projectionFinMois = rythmeActuel * totalJoursMois;
+
+    // Statut : EN_AVANCE | EN_RETARD | ATTEINT | PAS_OBJECTIF
+    let statut: "EN_AVANCE" | "EN_RETARD" | "ATTEINT" | "PAS_OBJECTIF" = "PAS_OBJECTIF";
+    if (targetCA > 0) {
+      if (caRealise >= targetCA) {
+        statut = "ATTEINT";
+      } else {
+        // Rythme théorique : targetCA / totalJoursMois
+        const rythmeTheorique = targetCA / totalJoursMois;
+        statut = rythmeActuel >= rythmeTheorique ? "EN_AVANCE" : "EN_RETARD";
+      }
+    }
+
+    res.json({
+      // Contexte temporel
+      today:             today.toISOString().slice(0, 10),
+      jourDonnees,            // nbre de jours avec données (J-1)
+      joursRestants,          // jours restants dans le mois
+      totalJoursMois,
+
+      // Financier
+      targetCA,
+      caRealise,
+      caRestant,
+      progressPct,
+
+      // Rythmes
+      rythmeActuel,           // FCFA/jour réalisé en moyenne
+      rythmeNecessaire,       // FCFA/jour nécessaire pour finir l'objectif
+      projectionFinMois,      // projection CA total si on maintient le rythme actuel
+
+      // Synthèse
+      statut,
+      targetCASetAt: report?.targetCASetAt ?? null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 
 export default router;
