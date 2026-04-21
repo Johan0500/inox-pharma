@@ -249,8 +249,12 @@ export default function UsersTab() {
                       {/* Utilisateur */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center font-bold text-green-700 text-xs shrink-0">
-                            {u.firstName?.[0]}{u.lastName?.[0]}
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-green-700 text-xs shrink-0 overflow-hidden border-2 border-green-100"
+                            style={{ background: u.avatar ? "transparent" : "#dcfce7" }}>
+                            {u.avatar
+                              ? <img src={u.avatar} alt="" className="w-full h-full object-cover" />
+                              : <>{u.firstName?.[0]}{u.lastName?.[0]}</>
+                            }
                           </div>
                           <div>
                             <p className="font-semibold text-gray-800">

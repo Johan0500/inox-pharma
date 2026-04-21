@@ -189,9 +189,19 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
         {/* Utilisateur */}
         <div style={{ padding:"12px 16px", borderTop:"1px solid rgba(255,255,255,0.1)", flexShrink:0 }}>
           {!collapsed && (
-            <div style={{ marginBottom:8, padding:"8px 10px", background:"rgba(255,255,255,0.1)", borderRadius:10 }}>
-              <p style={{ color:"white", fontSize:13, fontWeight:600, margin:0 }}>{user?.firstName} {user?.lastName}</p>
-              <p style={{ color:"rgba(255,255,255,0.55)", fontSize:10, margin:0 }}>{user?.email}</p>
+            <div style={{ marginBottom:8, padding:"8px 10px", background:"rgba(255,255,255,0.1)", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
+              {/* Avatar admin */}
+              <div style={{ width:34, height:34, borderRadius:10, flexShrink:0, overflow:"hidden", border:"2px solid rgba(255,255,255,0.25)",
+                background:user?.avatar ? "transparent" : "rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {user?.avatar
+                  ? <img src={(user as any).avatar} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : <span style={{ color:"white", fontSize:13, fontWeight:700 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+                }
+              </div>
+              <div style={{ overflow:"hidden" }}>
+                <p style={{ color:"white", fontSize:13, fontWeight:600, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user?.firstName} {user?.lastName}</p>
+                <p style={{ color:"rgba(255,255,255,0.55)", fontSize:10, margin:0, overflow:"hidden", textOverflow:"ellipsis" }}>{user?.email}</p>
+              </div>
             </div>
           )}
           <button onClick={() => setShowProfile(true)} title={collapsed ? "Mon profil" : undefined}
@@ -233,11 +243,22 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
               {labName} — {new Date().toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
             </p>
           </div>
-          <div style={{
-            background:"#f0fdf4", border:`1px solid ${labColor}30`,
-            borderRadius:10, padding:"5px 12px", color:labColor, fontSize:12, fontWeight:600,
-          }}>
-            {user?.role === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{
+              background:"#f0fdf4", border:`1px solid ${labColor}30`,
+              borderRadius:10, padding:"5px 12px", color:labColor, fontSize:12, fontWeight:600,
+            }}>
+              {user?.role === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
+            </div>
+            <button onClick={() => setShowProfile(true)} style={{ background:"none", border:"none", cursor:"pointer", padding:0 }}>
+              <div style={{ width:36, height:36, borderRadius:"50%", overflow:"hidden", border:`2px solid ${labColor}40`,
+                background:user?.avatar ? "transparent" : labColor, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {user?.avatar
+                  ? <img src={(user as any).avatar} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : <span style={{ color:"white", fontSize:13, fontWeight:700 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+                }
+              </div>
+            </button>
           </div>
         </div>
         <div style={{ padding:24 }}>{renderTab()}</div>

@@ -35,11 +35,22 @@ export default function DelegatesTab() {
           {(delegates as any[]).map((d) => (
             <div key={d.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-semibold text-gray-800">
-                    {d.user.firstName} {d.user.lastName}
-                  </p>
-                  <p className="text-xs text-gray-400">{d.user.email}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100"
+                    style={{ background: d.user.avatar ? "transparent" : "linear-gradient(135deg,#059669,#065f46)" }}>
+                    {d.user.avatar
+                      ? <img src={d.user.avatar} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold">
+                          {d.user.firstName?.[0]}{d.user.lastName?.[0]}
+                        </div>
+                    }
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      {d.user.firstName} {d.user.lastName}
+                    </p>
+                    <p className="text-xs text-gray-400">{d.user.email}</p>
+                  </div>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   d.user.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"

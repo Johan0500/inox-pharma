@@ -1,235 +1,282 @@
-import { useState } from "react";
+import { useState }  from "react";
 import { useQuery }  from "@tanstack/react-query";
-import { Package, Search, X, ChevronRight, Layers } from "lucide-react";
+import { Package, Search, X, ChevronRight } from "lucide-react";
 import api from "../../services/api";
+import { useAuth } from "../../contexts/AuthContext";
 
-const GROUP_COLORS: Record<string, { header: string; badge: string; dot: string }> = {
-  "GROUPE 1": { header: "text-blue-700 bg-blue-50 border-blue-100",     badge: "bg-blue-100 text-blue-800",     dot: "#2563eb" },
-  "GROUPE 2": { header: "text-green-700 bg-green-50 border-green-100",   badge: "bg-green-100 text-green-800",   dot: "#16a34a" },
-  "GROUPE 3": { header: "text-purple-700 bg-purple-50 border-purple-100",badge: "bg-purple-100 text-purple-800", dot: "#7c3aed" },
-  "GROUPE 4": { header: "text-orange-700 bg-orange-50 border-orange-100",badge: "bg-orange-100 text-orange-800", dot: "#ea580c" },
+// ── Catalogue CROIENT (hardcodé, identique à l'admin) ────────
+const SPECIALITES_CROIENT: Record<string, string[]> = {
+  "MEDECIN GENERALE":              ["TERCO","CEXIME","FEROXYDE","GUAMEN","DOLBUFEN","CETAFF","COFEN","HEAMOCARE","ROLIK","CYPRONURAN","ANOCURE","TRAVICOLD","DINATE","INOBACTAME","DINATE INJECTIABLE","FEROXYDE B9","INOBACTAM INJ"],
+  "CHIRURGIE":                     ["CROCIP-TZ","ACICROF-P","PIRRO","HEAMOCARE","CYPRONURAN","BETAMECRO","INABACTAME","ROLIK","FEROXYDE","ESOMECRO","AZIENT"],
+  "NEPHROLOGIE":                   ["AZIENT","CROCIP-TZ","CROZOLE"],
+  "GASTRO":                        ["ESOMECRO","AZIENT","CROZOLE","TRAVICOLD"],
+  "GYNECO-SAGE FEMME":             ["AZIENT","CEXIME","ZIFLUSEC","ZIFLUSEC KIT","CROTRIMA V6","FEROXYDE B9","CROGENTA","HEAMOCARE","CYPRONURAN","ROLIK","GESTREL","CROZOLE CP","FEROXYDE","KEOZOL"],
+  "DERMATOLOGIE":                  ["AZIENT","BETAMECRO","BECLOZOLE","KEOZOL","HEAMOCARE","MRITIZ","CROZOLE"],
+  "DERMATOLOGIE VENEROLOGIE":      ["AZIENT","BETAMECRO","BECLOZOLE","KEOZOL","HEAMOCARE","MRITIZ","CROZOLE","INOBACTAME","SANOZOL","CROTRIMA V6","CROCILLINE"],
+  "DIABETOLOGIE":                  ["GLIZAR MR","CROFORMIN","PREGIB","HEAMOCARE","CROCIP-TZ","CROZOLE","ESOMECRO","MRITIZ"],
+  "PEDIATRIE":                     ["CEXIME","CROCILLINE","CROZOLE","GUAMEN","ROLIK","FEROXYDE","TERCO","CYPRONURAN","TRAVICOLD","ANOCURE","DINATE","KEOZOL","MRITIZ"],
+  "KINESIE":                       ["CROLINI GEL","BETAMECRO","PIRRO","ACICROF-P","CETAFF","COFEN","DOLBUFEN","ROLIK","ESOMECRO","KEOZOL"],
+  "PNEUMOLOGIE":                   ["CEXIME","GUAMEN","AZIENT","MRITIZ","BETAMECRO","CROCIP TZ","COFEN / ACICROF P","INOBACTAM","CROCILLINE","TRAVICOLD","CROZOLE","DOLBUFEN"],
+  "ORL":                           ["CEXIME","AZIENT","GUAMEN","MRITIZ","BETAMECRO","COFEN","CROCILLINE","CYPRONURAN","DOLBUFEN","CETAFF","TRAVICOLD","DOBUFEN"],
+  "RHUMATOLOGIE NEURO TRAUMATO":   ["PIRRO","ACICROF-P","PREGIB","ESOMECRO","BETAMECRO","CROLINI GEL","CROCIP TZ","INOBACTAM"],
+  "OPHTALMOLOGIE":                 ["CROGENTA","MRITIZ","BETAMECRO","AZIENT","CROCIP-TZ"],
 };
-const DEFAULT_COLOR = { header: "text-gray-700 bg-gray-50 border-gray-100", badge: "bg-gray-100 text-gray-700", dot: "#6b7280" };
+
+const ICONS: Record<string, string> = {
+  "MEDECIN GENERALE":"🩺","CHIRURGIE":"🔪","NEPHROLOGIE":"🫘","GASTRO":"🫀",
+  "GYNECO-SAGE FEMME":"👶","DERMATOLOGIE":"🧴","DERMATOLOGIE VENEROLOGIE":"🧴",
+  "DIABETOLOGIE":"💉","PEDIATRIE":"🧒","KINESIE":"🦴","PNEUMOLOGIE":"🫁",
+  "ORL":"👂","RHUMATOLOGIE NEURO TRAUMATO":"🧠","OPHTALMOLOGIE":"👁️",
+};
+
+const SPEC_COLORS: Record<string, string> = {
+  "MEDECIN GENERALE":"#059669","CHIRURGIE":"#dc2626","NEPHROLOGIE":"#7c3aed",
+  "GASTRO":"#ea580c","GYNECO-SAGE FEMME":"#db2777","DERMATOLOGIE":"#0891b2",
+  "DERMATOLOGIE VENEROLOGIE":"#0891b2","DIABETOLOGIE":"#2563eb","PEDIATRIE":"#16a34a",
+  "KINESIE":"#ca8a04","PNEUMOLOGIE":"#0284c7","ORL":"#9333ea",
+  "RHUMATOLOGIE NEURO TRAUMATO":"#b45309","OPHTALMOLOGIE":"#0f766e",
+};
 
 export default function MyProducts() {
-  const [search,      setSearch]      = useState("");
-  const [activeSpec,  setActiveSpec]  = useState<string | null>(null);
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  const [selected,    setSelected]    = useState<any | null>(null);
+  const { user } = useAuth();
+  const [search,       setSearch]       = useState("");
+  const [activeView,   setActiveView]   = useState("croient");
+  const [expandedSpec, setExpandedSpec] = useState<string | null>(null);
+  const [selectedProd, setSelectedProd] = useState<{ name: string; spec: string } | null>(null);
 
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products"],
+  // Produits depuis API
+  const { data: dbProducts } = useQuery({
+    queryKey: ["products-db"],
     queryFn:  () => api.get("/products").then((r) => r.data),
+    staleTime: 2 * 60 * 1000,
   });
 
-  const { data: specialties = [] } = useQuery({
-    queryKey: ["specialties"],
-    queryFn:  () => api.get("/products/specialties").then((r) => r.data),
+  // Labos disponibles
+  const { data: labs } = useQuery({
+    queryKey: ["laboratories"],
+    queryFn:  () => api.get("/laboratories").then((r) => r.data),
+    staleTime: 2 * 60 * 1000,
   });
 
-  const filtered = (products as any[]).filter((p) => {
-    const matchSearch = !search ||
-      p.name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.specialty?.toLowerCase().includes(search.toLowerCase()) ||
-      p.group?.toLowerCase().includes(search.toLowerCase());
-    const matchSpec  = !activeSpec  || p.specialty === activeSpec;
-    const matchGroup = !activeGroup || p.group     === activeGroup;
-    return matchSearch && matchSpec && matchGroup;
-  });
+  const dbList: any[] = Array.isArray(dbProducts) ? dbProducts : [];
+  const labsList: string[] = Array.isArray(labs)
+    ? labs.map((l: any) => l.name).filter((n: string) => n.toLowerCase() !== "croient" && n.toLowerCase() !== "lic-pharma")
+    : [];
 
-  const grouped = filtered.reduce((acc: Record<string, Record<string, any[]>>, p) => {
-    const g = p.group || "Sans groupe";
-    const s = p.specialty || "Sans spécialité";
-    if (!acc[g]) acc[g] = {};
-    if (!acc[g][s]) acc[g][s] = [];
-    acc[g][s].push(p);
+  // Construire le catalogue selon la vue
+  const buildCatalog = (view: string): Record<string, string[]> => {
+    if (view === "croient") {
+      const catalog = { ...SPECIALITES_CROIENT };
+      dbList.filter(p => p.laboratory?.name?.toLowerCase() === "croient" || p.group?.toLowerCase() === "croient")
+        .forEach(p => {
+          if (!catalog[p.specialty]) catalog[p.specialty] = [];
+          if (!catalog[p.specialty].includes(p.name)) catalog[p.specialty].push(p.name);
+        });
+      return catalog;
+    }
+    if (view === "global") {
+      const catalog: Record<string, string[]> = { ...SPECIALITES_CROIENT };
+      dbList.forEach(p => {
+        const spec = p.specialty || "GÉNÉRAL";
+        if (!catalog[spec]) catalog[spec] = [];
+        if (!catalog[spec].includes(p.name)) catalog[spec].push(p.name);
+      });
+      return catalog;
+    }
+    const catalog: Record<string, string[]> = {};
+    dbList.filter(p => p.laboratory?.name?.toLowerCase() === view.toLowerCase())
+      .forEach(p => {
+        const spec = p.specialty || "GÉNÉRAL";
+        if (!catalog[spec]) catalog[spec] = [];
+        catalog[spec].push(p.name);
+      });
+    return catalog;
+  };
+
+  const catalog      = buildCatalog(activeView);
+  const totalProduits = [...new Set(Object.values(catalog).flat())].length;
+
+  // Filtrer par recherche
+  const filteredSpecs = Object.entries(catalog).reduce((acc, [spec, prods]) => {
+    const filtered = prods.filter(p =>
+      p.toLowerCase().includes(search.toLowerCase()) ||
+      spec.toLowerCase().includes(search.toLowerCase())
+    );
+    if (!search || filtered.length > 0) acc[spec] = search ? filtered : prods;
     return acc;
-  }, {});
+  }, {} as Record<string, string[]>);
 
-  const groups = [...new Set((products as any[]).map((p: any) => p.group).filter(Boolean))];
-  const hasFilters = !!search || !!activeSpec || !!activeGroup;
+  // Labs du délégué (pour restreindre la vue)
+  const userLabs: string[] = (user as any)?.labs || [];
+  const canSeeView = (view: string) => {
+    if (view === "croient" || view === "global") return true;
+    if (userLabs.length === 0) return true; // pas de restriction
+    return userLabs.some(l => l.toLowerCase() === view.toLowerCase());
+  };
 
   return (
     <div className="space-y-4">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Package size={22} className="text-emerald-600" />
-          <h2 className="text-xl font-bold text-gray-800">Produits INOX PHARMA</h2>
-        </div>
-        <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold px-3 py-1 rounded-full">
-          {(products as any[]).length} produits
-        </span>
-      </div>
 
-      {/* Recherche + Filtres */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* Banner */}
+      <div style={{
+        background: "linear-gradient(135deg, #064e3b 0%, #059669 100%)",
+        borderRadius: 20, padding: 20, color: "white",
+        boxShadow: "0 4px 20px rgba(6,78,59,0.25)",
+      }}>
+        <div className="flex items-center gap-3 mb-3">
+          <div style={{ width:44, height:44, borderRadius:12, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Package size={22} />
+          </div>
+          <div>
+            <h2 style={{ margin:0, fontSize:18, fontWeight:700 }}>Catalogue Produits</h2>
+            <p style={{ margin:0, fontSize:12, opacity:0.7 }}>
+              {Object.keys(filteredSpecs).length} spécialités — {totalProduits} produits
+            </p>
+          </div>
+        </div>
+
+        {/* Recherche */}
+        <div style={{ position:"relative" }}>
+          <Search size={14} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,0.6)" }} />
           <input
-            type="text" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un produit, spécialité, groupe…"
-            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-400 transition"
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un produit ou spécialité…"
+            style={{ width:"100%", paddingLeft:36, paddingRight:36, paddingTop:10, paddingBottom:10,
+              background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.25)",
+              borderRadius:12, color:"white", fontSize:13, outline:"none", boxSizing:"border-box" }}
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setSearch("")} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.6)", cursor:"pointer", padding:0 }}>
               <X size={14} />
             </button>
           )}
         </div>
 
-        {groups.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Groupe</p>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setActiveGroup(null)}
-                className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition ${!activeGroup ? "bg-slate-800 text-white border-slate-800" : "bg-white text-gray-600 border-gray-200"}`}>
-                Tous
-              </button>
-              {groups.map((g) => {
-                const style = GROUP_COLORS[g] || DEFAULT_COLOR;
-                const isActive = activeGroup === g;
-                return (
-                  <button key={g} onClick={() => setActiveGroup(isActive ? null : g)}
-                    className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition flex items-center gap-1.5 ${isActive ? style.badge + " border-current" : "bg-white text-gray-600 border-gray-200"}`}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: style.dot }} />
-                    {g}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {(specialties as any[]).length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Spécialité</p>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setActiveSpec(null)}
-                className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition ${!activeSpec ? "bg-slate-800 text-white border-slate-800" : "bg-white text-gray-600 border-gray-200"}`}>
-                Toutes
-              </button>
-              {(specialties as any[]).map((s) => (
-                <button key={s.specialty} onClick={() => setActiveSpec(activeSpec === s.specialty ? null : s.specialty)}
-                  className={`text-xs px-3 py-1.5 rounded-full border-2 font-medium transition ${activeSpec === s.specialty ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"}`}>
-                  {s.specialty}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {hasFilters && (
-          <button onClick={() => { setSearch(""); setActiveSpec(null); setActiveGroup(null); }}
-            className="flex items-center gap-1.5 text-xs text-red-500 border border-red-200 bg-red-50 px-3 py-1.5 rounded-xl hover:bg-red-100 transition font-medium">
-            <X size={12} /> Réinitialiser les filtres
-          </button>
-        )}
+        {/* Onglets labo */}
+        <div className="flex flex-wrap gap-2 mt-3">
+          {canSeeView("croient") && (
+            <button onClick={() => setActiveView("croient")}
+              style={{ padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer", border:"none",
+                background: activeView==="croient" ? "white" : "rgba(255,255,255,0.15)",
+                color: activeView==="croient" ? "#064e3b" : "rgba(255,255,255,0.85)" }}>
+              🔬 CROIENT
+            </button>
+          )}
+          {canSeeView("lic-pharma") && dbList.some(p => p.laboratory?.name?.toLowerCase() === "lic-pharma") && (
+            <button onClick={() => setActiveView("lic-pharma")}
+              style={{ padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer", border:"none",
+                background: activeView==="lic-pharma" ? "white" : "rgba(255,255,255,0.15)",
+                color: activeView==="lic-pharma" ? "#1d4ed8" : "rgba(255,255,255,0.85)" }}>
+              💊 LIC PHARMA
+            </button>
+          )}
+          {labsList.filter(canSeeView).map(lab => (
+            <button key={lab} onClick={() => setActiveView(lab.toLowerCase())}
+              style={{ padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer", border:"none",
+                background: activeView===lab.toLowerCase() ? "white" : "rgba(255,255,255,0.15)",
+                color: activeView===lab.toLowerCase() ? "#6b21a8" : "rgba(255,255,255,0.85)" }}>
+              🏭 {lab.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Liste */}
-      {isLoading ? (
-        <div className="text-center py-12 text-gray-400">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          Chargement…
-        </div>
-      ) : Object.keys(grouped).length === 0 ? (
+      {/* Spécialités */}
+      {Object.keys(filteredSpecs).length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-100">
           <Package size={40} className="mx-auto mb-3 text-gray-200" />
           <p className="font-medium">Aucun produit trouvé</p>
-          {hasFilters && <p className="text-xs mt-1">Essayez de modifier vos filtres</p>}
+          {search && <button onClick={() => setSearch("")} className="text-emerald-600 text-sm mt-2 hover:underline">Effacer la recherche</button>}
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Résumé */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-emerald-600 rounded-2xl p-4 text-white">
-              <p className="text-2xl font-bold">{filtered.length}</p>
-              <p className="text-xs text-emerald-100 mt-0.5">{hasFilters ? "produits filtrés" : "produits total"}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-              <p className="text-2xl font-bold text-gray-800">{Object.keys(grouped).length}</p>
-              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Layers size={11} /> groupes actifs</p>
-            </div>
-          </div>
-
-          {/* Groupes */}
-          {Object.entries(grouped).map(([group, specs]) => {
-            const style = GROUP_COLORS[group] || DEFAULT_COLOR;
-            const totalInGroup = Object.values(specs).flat().length;
+        <div className="space-y-2">
+          {Object.entries(filteredSpecs).map(([spec, prods]) => {
+            const isOpen = expandedSpec === spec;
+            const color  = SPEC_COLORS[spec] || "#6b7280";
+            const icon   = ICONS[spec] || "💊";
             return (
-              <div key={group} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className={`px-5 py-3 border-b ${style.header} flex items-center justify-between`}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ background: style.dot }} />
-                    <p className="font-bold text-sm">{group}</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>
-                    {totalInGroup} produit{totalInGroup > 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="p-4 space-y-4">
-                  {Object.entries(specs as Record<string, any[]>).map(([specialty, prods]) => (
-                    <div key={specialty}>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">{specialty}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {prods.map((p) => (
-                          <button key={p.id} onClick={() => setSelected(p)}
-                            className={`text-sm px-4 py-2 rounded-xl font-semibold shadow-sm flex items-center gap-1.5 hover:opacity-80 active:scale-95 transition ${style.badge}`}>
-                            {p.name}
-                            <ChevronRight size={13} className="opacity-60" />
-                          </button>
-                        ))}
-                      </div>
+              <div key={spec} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                {/* Header spécialité */}
+                <button
+                  onClick={() => setExpandedSpec(isOpen ? null : spec)}
+                  className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                      style={{ background: color + "18" }}>
+                      {icon}
                     </div>
-                  ))}
-                </div>
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-800 text-sm">{spec}</p>
+                      <p className="text-xs text-gray-400">{prods.length} produit{prods.length > 1 ? "s" : ""}</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 transition-transform flex-shrink-0"
+                    style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }} />
+                </button>
+
+                {/* Produits (expanded) */}
+                {isOpen && (
+                  <div className="px-4 pb-4 border-t border-gray-50">
+                    <div className="flex flex-wrap gap-2 pt-3">
+                      {prods.map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => setSelectedProd({ name: p, spec })}
+                          className="text-sm px-3 py-1.5 rounded-xl font-semibold transition hover:opacity-80 active:scale-95"
+                          style={{ background: color + "18", color }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Modal détail */}
-      {selected && (() => {
-        const style = GROUP_COLORS[selected.group] || DEFAULT_COLOR;
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelected(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className={`px-5 py-5 ${style.header} border-b`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-lg leading-tight">{selected.name}</p>
-                    {selected.group && (
-                      <span className={`inline-block mt-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${style.badge}`}>{selected.group}</span>
+      {/* Modal produit — lecture seule */}
+      {selectedProd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedProd(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b border-gray-100">
+              <div>
+                <p className="font-bold text-gray-800 text-lg">{selectedProd.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{selectedProd.spec}</p>
+              </div>
+              <button onClick={() => setSelectedProd(null)} className="text-gray-400 hover:text-gray-600 ml-3"><X size={20} /></button>
+            </div>
+            <div className="p-5">
+              {(() => {
+                const dbProd = dbList.find(p => p.name === selectedProd.name);
+                if (!dbProd) return <p className="text-sm text-gray-400 italic text-center">Produit CROIENT</p>;
+                return (
+                  <div className="space-y-3">
+                    {[
+                      { label: "DCI",             value: dbProd.dci            },
+                      { label: "Dosage",           value: dbProd.dosage         },
+                      { label: "Forme",            value: dbProd.forme          },
+                      { label: "Conditionnement",  value: dbProd.conditionnement},
+                      { label: "Description",      value: dbProd.description    },
+                    ].filter(f => f.value).map(({ label, value }) => (
+                      <div key={label} className="flex gap-3 items-start">
+                        <span className="text-xs font-semibold text-gray-400 w-32 flex-shrink-0 uppercase tracking-wide mt-0.5">{label}</span>
+                        <span className="text-sm text-gray-800 font-medium">{value}</span>
+                      </div>
+                    ))}
+                    {![dbProd.dci, dbProd.dosage, dbProd.forme].some(Boolean) && (
+                      <p className="text-sm text-gray-400 italic text-center">Pas d'informations complémentaires</p>
                     )}
                   </div>
-                  <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 mt-0.5"><X size={20} /></button>
-                </div>
-              </div>
-              <div className="p-5 space-y-3">
-                {[
-                  { label: "Spécialité",       value: selected.specialty       },
-                  { label: "DCI",              value: selected.dci             },
-                  { label: "Dosage",           value: selected.dosage          },
-                  { label: "Forme",            value: selected.forme           },
-                  { label: "Conditionnement",  value: selected.conditionnement },
-                  { label: "Description",      value: selected.description     },
-                ].filter((f) => f.value).map(({ label, value }) => (
-                  <div key={label} className="flex gap-3 items-start">
-                    <span className="text-xs font-semibold text-gray-400 w-32 flex-shrink-0 uppercase tracking-wide mt-0.5">{label}</span>
-                    <span className="text-sm text-gray-800 font-medium">{value}</span>
-                  </div>
-                ))}
-                {![selected.specialty, selected.dci, selected.dosage, selected.forme].some(Boolean) && (
-                  <p className="text-sm text-gray-400 italic text-center py-2">Aucune information complémentaire disponible</p>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useAuth }             from "../../contexts/AuthContext";
 import {
   FileText, Calendar, Package,
   LogOut, MessageCircle, Target, LayoutDashboard,
-  History, User, Lock, BookOpen, Building2,
+  User, Lock, BookOpen, Building2,
 } from "lucide-react";
 import { useQuery }      from "@tanstack/react-query";
 import api               from "../../services/api";
@@ -16,7 +16,6 @@ import MyProducts     from "./MyProducts";
 import MyMessages     from "./MyMessages";
 import MyObjectives   from "./MyObjectives";
 import MyDashboard    from "./MyDashboard";
-import MyVisitHistory from "./MyVisitHistory";
 import MyProfile      from "./MyProfile";
 import MyPharmacies   from "./MyPharmacies";
 import ChangePasswordModal from "../shared/ChangePasswordModal";
@@ -28,7 +27,6 @@ const TABS = [
   { id: "dashboard",   label: "Accueil",     icon: LayoutDashboard },
   { id: "report",      label: "Rapport",     icon: FileText        },
   { id: "planning",    label: "Planning",    icon: Calendar        },
-  { id: "history",     label: "Historique",  icon: History         },
   { id: "messages",    label: "Messages",    icon: MessageCircle   },
   { id: "objectives",  label: "Objectifs",   icon: Target          },
   { id: "strategie",   label: "Stratégie",   icon: BookOpen        },
@@ -74,7 +72,6 @@ export default function DelegateView() {
       case "dashboard":  return <MyDashboard    />;
       case "report":     return <VisitReport    />;
       case "planning":   return <MyPlanning     />;
-      case "history":    return <MyVisitHistory />;
       case "messages":   return <MyMessages     />;
       case "objectives": return <MyObjectives   />;
       case "strategie":  return <MyStrategie    />;
@@ -90,11 +87,11 @@ export default function DelegateView() {
   const AvatarBubble = ({ size = 32 }: { size?: number }) => (
     <div style={{
       width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      background: (user as any)?.avatar ? "transparent" : "rgba(255,255,255,0.25)",
+      background: user?.avatar ? "transparent" : "rgba(255,255,255,0.25)",
       display: "flex", alignItems: "center", justifyContent: "center",
       overflow: "hidden", border: "2px solid rgba(255,255,255,0.3)",
     }}>
-      {(user as any)?.avatar
+      {user?.avatar
         ? <img src={(user as any).avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <span style={{ color: "white", fontSize: size * 0.38, fontWeight: 700 }}>
             {user?.firstName?.[0]}{user?.lastName?.[0]}
@@ -295,49 +292,7 @@ export default function DelegateView() {
         </div>
       </main>
 
-      {/* ── Bottom nav mobile ── */}
-      <nav
-        style={{
-          position: "fixed", bottom: 0, left: 0, right: 0,
-          background: "white", borderTop: "1px solid #e5e7eb",
-          display: "flex", justifyContent: "space-around",
-          padding: "8px 0 env(safe-area-inset-bottom)",
-          zIndex: 50, boxShadow: "0 -4px 20px rgba(0,0,0,0.08)",
-        }}
-        className="lg:hidden"
-      >
-        {TABS.slice(0, 5).map(({ id, label, icon: Icon }) => {
-          const isActive = tab === id;
-          return (
-            <button
-              key={id}
-              onClick={() => handleTab(id)}
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                background: "none", border: "none", cursor: "pointer",
-                padding: "4px 8px", borderRadius: 10,
-                color: isActive ? LAB_COLOR : "#9ca3af",
-                fontWeight: isActive ? 700 : 400,
-              }}
-            >
-              <div style={{ position: "relative" }}>
-                <Icon size={20} />
-                {id === "messages" && (unreadCount as number) > 0 && (
-                  <span style={{
-                    position: "absolute", top: -4, right: -4,
-                    background: "#ef4444", color: "white",
-                    fontSize: 8, fontWeight: 700, borderRadius: "50%",
-                    width: 12, height: 12, display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {(unreadCount as number) > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </div>
-              <span style={{ fontSize: 10 }}>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Bottom nav mobile supprimée — navigation via sidebar uniquement */}
 
       {showPwd     && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
       {showProfile && <ProfileModal       onClose={() => setShowProfile(false)} />}
