@@ -25,6 +25,7 @@ export type DelegateStatus = "EN_VISITE" | "EN_DEPLACEMENT" | "EN_PAUSE" | "INAC
 export interface User {
   id: string; email: string; firstName: string; lastName: string;
   role: Role; isActive: boolean; labs?: string[]; delegate?: DelegateProfile | null;
+  avatar?: string | null;
 }
 export interface DelegateProfile {
   id: string; zone: string; status: DelegateStatus; laboratory: string;
