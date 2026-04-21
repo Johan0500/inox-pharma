@@ -43,9 +43,8 @@ export default function MyPharmacies() {
   const total: number     = data?.total ?? 0;
   const pages: number     = data?.pages ?? 1;
 
-  // Dédupliquer grossistes et zones
-  const grossistes: string[] = [...new Set<string>((filters?.grossistes || []).map((g: string) => g.toLowerCase()))];
-  const zones: string[]      = [...new Set<string>((filters?.zones || []).filter(Boolean))];
+  // Zones sans doublons (depuis filters API)
+  const zones: string[] = [...new Set<string>((filters?.zones || []).filter(Boolean))];
 
   const hasFilters = search || grossiste !== "all" || zone !== "all";
   const resetFilters = () => { setSearch(""); setGrossite("all"); setZone("all"); setPage(1); };
@@ -77,7 +76,7 @@ export default function MyPharmacies() {
             const isActive = grossiste === key;
             return (
               <button key={g.grossiste}
-                onClick={() => { setGrossite(isActive ? "all" : key); setPage(1); }}
+                onClick={() => { setGrossite(isActive ? "all" : g.grossiste); setPage(1); }}
                 className={`${colors.bg} rounded-2xl p-4 text-left transition border-2 ${isActive ? "border-current shadow-md" : "border-transparent hover:shadow-sm"}`}>
                 <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} mb-2`} />
                 <p className={`text-xs font-bold uppercase ${colors.text}`}>{g.grossiste}</p>
@@ -106,18 +105,8 @@ export default function MyPharmacies() {
           )}
         </div>
 
-        {/* Selects grossiste + zone */}
+        {/* Filtre zone */}
         <div className="flex flex-wrap gap-2">
-          {/* Grossiste */}
-          {grossistes.length > 0 && (
-            <select value={grossiste} onChange={(e) => { setGrossite(e.target.value); setPage(1); }}
-              className="border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none flex-1 min-w-[140px]">
-              <option value="all">Tous grossistes</option>
-              {grossistes.map((g) => (
-                <option key={g} value={g}>{g.toUpperCase()}</option>
-              ))}
-            </select>
-          )}
           {/* Zone */}
           {zones.length > 0 && (
             <select value={zone} onChange={(e) => { setZone(e.target.value); setPage(1); }}

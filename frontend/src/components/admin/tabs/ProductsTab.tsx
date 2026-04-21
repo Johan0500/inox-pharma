@@ -40,13 +40,17 @@ const COLORS: Record<string, string> = {
 
 export default function ProductsTab() {
   const { user }           = useAuth();
-  useLab(); // contexte labo actif
+  const { selectedLab } = useLab(); // labo actif
   const qc                 = useQueryClient();
   const isSuperAdmin       = user?.role === "SUPER_ADMIN";
   const isAdmin            = user?.role === "ADMIN";
 
   // Vue active : "croient" | "lic-pharma" | "global" | nom d'un labo dynamique
-  const [activeView,   setActiveView]   = useState<string>("croient");
+  // Vue par défaut = premier labo de l'admin (ou croient pour super admin)
+  const defaultView = isSuperAdmin
+    ? (selectedLab && selectedLab !== "all" ? selectedLab : "croient")
+    : ((user?.labs?.[0] || "croient").toLowerCase());
+  const [activeView,   setActiveView]   = useState<string>(defaultView);
   const [search,       setSearch]       = useState("");
   const [expandedSpec, setExpandedSpec] = useState<string | null>(null);
 
@@ -147,7 +151,12 @@ export default function ProductsTab() {
     : [];
 
   const canSeeLabView = (labView: string) => {
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin) {
+      // SuperAdmin en vue labo spécifique : voir uniquement ce labo
+      if (selectedLab && selectedLab !== "all")
+        return labView.toLowerCase() === selectedLab.toLowerCase();
+      return true;
+    }
     if (!isAdmin) return false;
     // Admin ne voit que son labo
     return (user?.labs || []).some((l: string) => l.toLowerCase() === labView.toLowerCase());

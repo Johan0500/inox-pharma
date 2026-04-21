@@ -39,8 +39,12 @@ const SPEC_COLORS: Record<string, string> = {
 
 export default function MyProducts() {
   const { user } = useAuth();
+  // Labs du délégué — déclaré ici pour être utilisé dans defaultLab
+  const userLabs: string[] = (user as any)?.labs || [];
   const [search,       setSearch]       = useState("");
-  const [activeView,   setActiveView]   = useState("croient");
+  // Vue par défaut = premier labo du délégué
+  const defaultLab = userLabs[0]?.toLowerCase() || "croient";
+  const [activeView,   setActiveView]   = useState(defaultLab);
   const [expandedSpec, setExpandedSpec] = useState<string | null>(null);
   const [selectedProd, setSelectedProd] = useState<{ name: string; spec: string } | null>(null);
 
@@ -106,11 +110,9 @@ export default function MyProducts() {
     return acc;
   }, {} as Record<string, string[]>);
 
-  // Labs du délégué (pour restreindre la vue)
-  const userLabs: string[] = (user as any)?.labs || [];
   const canSeeView = (view: string) => {
-    if (view === "croient" || view === "global") return true;
-    if (userLabs.length === 0) return true; // pas de restriction
+    // Pas de labs assignés = voir tout (mode fallback)
+    if (userLabs.length === 0) return view === "croient";
     return userLabs.some(l => l.toLowerCase() === view.toLowerCase());
   };
 

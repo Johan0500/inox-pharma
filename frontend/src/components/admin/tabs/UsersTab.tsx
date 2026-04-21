@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import api from "../../../services/api";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useLab }  from "../../../contexts/LabContext";
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -25,8 +26,9 @@ type ConfirmAction = {
 } | null;
 
 export default function UsersTab() {
-  const qc           = useQueryClient();
-  const { user: me } = useAuth();
+  const qc              = useQueryClient();
+  const { user: me }    = useAuth();
+  const { selectedLab } = useLab();
   const [showModal,  setShowModal]  = useState(false);
   const [search,     setSearch]     = useState("");
   const [showPwd,    setShowPwd]    = useState(false);
@@ -37,8 +39,8 @@ export default function UsersTab() {
   });
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ["users"],
-    queryFn:  () => api.get("/users").then(r => r.data),
+    queryKey: ["users", selectedLab],
+    queryFn:  () => api.get("/users", { headers: { "X-Lab": selectedLab || "all" } }).then(r => r.data),
     refetchInterval: 30000,
   });
 
@@ -94,15 +96,27 @@ export default function UsersTab() {
     createUser.mutate(form);
   };
 
+  // Filtre par labo (SuperAdmin voit selon le labo sélectionné)
   const filtered = (users as any[]).filter((u: any) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      u.firstName?.toLowerCase().includes(s) ||
-      u.lastName?.toLowerCase().includes(s)  ||
-      u.email?.toLowerCase().includes(s)     ||
-      u.role?.toLowerCase().includes(s)
-    );
+    // Filtre recherche texte
+    if (search) {
+      const s = search.toLowerCase();
+      const matchSearch =
+        u.firstName?.toLowerCase().includes(s) ||
+        u.lastName?.toLowerCase().includes(s)  ||
+        u.email?.toLowerCase().includes(s)     ||
+        u.role?.toLowerCase().includes(s);
+      if (!matchSearch) return false;
+    }
+    // SuperAdmin en vue non-globale : filtre par labo sélectionné
+    if (me?.role === "SUPER_ADMIN" && selectedLab && selectedLab !== "all") {
+      const userLabs = [
+        ...(u.adminLabs?.map((al: any) => al.laboratory?.name?.toLowerCase()) || []),
+        u.delegate?.laboratory?.name?.toLowerCase(),
+      ].filter(Boolean);
+      return userLabs.includes(selectedLab.toLowerCase());
+    }
+    return true;
   });
 
   const availableRoles = me?.role === "SUPER_ADMIN"

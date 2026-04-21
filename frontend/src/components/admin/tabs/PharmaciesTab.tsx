@@ -126,7 +126,7 @@ export default function PharmaciesTab() {
             const colors = GROSSISTE_COLORS[key] || { bg:"bg-gray-50", text:"text-gray-700", dot:"bg-gray-400" };
             return (
               <button key={g.grossiste}
-                onClick={() => { setGrossite(grossiste === key ? "all" : key); setPage(1); }}
+                onClick={() => { setGrossite(grossiste === key ? "all" : g.grossiste); setPage(1); }}
                 className={`${colors.bg} rounded-2xl p-4 text-left hover:shadow-md transition cursor-pointer border-2
                   ${grossiste === key ? "border-current shadow-md" : "border-transparent"}`}>
                 <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} mb-2`} />
@@ -158,11 +158,7 @@ export default function PharmaciesTab() {
             <option value="all">Toutes zones</option>
             {(filters?.zones || []).map((z: string) => <option key={z} value={z}>{z}</option>)}
           </select>
-          <select value={ville} onChange={(e) => { setVille(e.target.value); setPage(1); }}
-            className="border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
-            <option value="all">Toutes villes</option>
-            {(filters?.villes || []).map((v: string) => <option key={v} value={v}>{v}</option>)}
-          </select>
+
           {hasFilters && (
             <button onClick={resetFilters}
               className="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-sm px-3 py-2 border border-red-200 rounded-xl bg-red-50 transition">
@@ -176,7 +172,7 @@ export default function PharmaciesTab() {
             {search && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">"{search}"</span>}
             {grossiste !== "all" && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{grossiste.toUpperCase()}</span>}
             {zone !== "all" && <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">{zone}</span>}
-            {ville !== "all" && <span className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">{ville}</span>}
+
             <span className="text-xs text-gray-500 font-medium">{total.toLocaleString()} résultat(s)</span>
           </div>
         )}

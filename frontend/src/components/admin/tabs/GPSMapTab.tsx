@@ -81,17 +81,22 @@ export default function GPSMapTab() {
     return TRAIL_COLORS[colorIndexRef.current[id]];
   };
 
-  // Positions initiales
+  // Positions initiales — filtré par labo via X-Lab header
   const { data: initialPositions } = useQuery({
     queryKey: ["gps-positions", selectedLab],
-    queryFn:  () => api.get("/gps/positions").then((r) => r.data),
+    queryFn:  () => api.get("/gps/positions", {
+      headers: { "X-Lab": selectedLab || "all" },
+    }).then((r) => r.data),
     refetchInterval: 30000,
   });
 
-  // Historique du jour
+  // Historique du jour — filtré par labo
   const { data: historyData } = useQuery({
     queryKey: ["gps-history", selectedDate, selectedLab],
-    queryFn:  () => api.get("/gps/history", { params: { date: selectedDate } }).then(r => r.data),
+    queryFn:  () => api.get("/gps/history", {
+      params:  { date: selectedDate },
+      headers: { "X-Lab": selectedLab || "all" },
+    }).then(r => r.data),
     staleTime: 60000,
   });
 

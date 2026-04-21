@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, TrendingUp, TrendingDown, Minus, Plus, Trash2, Edit2, Check, X, RotateCcw } from "lucide-react";
 import api from "../../../services/api";
+import { useLab } from "../../../contexts/LabContext";
+import { useAuth } from "../../../contexts/AuthContext";
 
 const GROSSISTES = ["copharmed", "laborex", "tedis", "dpci"] as const;
 type Grossiste   = typeof GROSSISTES[number];
@@ -17,7 +19,9 @@ function calcS(stock: number, vente: number): number {
 }
 
 export default function ChiffresTab() {
-  const queryClient = useQueryClient();
+  const queryClient    = useQueryClient();
+  const { labName, labColor } = useLab();
+  const { user }       = useAuth();
   const pendingRef  = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const [saving,      setSaving]      = useState(false);
@@ -162,9 +166,9 @@ export default function ChiffresTab() {
       {/* ── En-tête ──────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Tableau des Chiffres</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Tableau des Chiffres — <span style={{color: labColor}}>{labName}</span></h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            {report?.laboratory?.name?.toUpperCase()} — {report?.month}/{report?.year}
+            {report?.laboratory?.name?.toUpperCase() || labName} — {report?.month}/{report?.year}
             {isSubmitted
               ? <span className="ml-2 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">✓ Soumis</span>
               : <span className="ml-2 bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full font-semibold">Brouillon</span>
@@ -318,7 +322,7 @@ export default function ChiffresTab() {
                 <th className="px-2 py-2 text-left border border-slate-600 min-w-[180px]">DÉSIGNATION</th>
                 <th className="px-2 py-2 text-center border border-slate-600 w-20">PGHT</th>
                 {GROSSISTES.map((g) => (
-                  <th key={g} colSpan={4} className="px-2 py-2 text-center border border-slate-600">
+                  <th key={g} colSpan={2} className="px-2 py-2 text-center border border-slate-600">
                     {g.toUpperCase()}
                   </th>
                 ))}
@@ -335,8 +339,6 @@ export default function ChiffresTab() {
                   <>
                     <th key={`${g}-s`}  className="px-1 py-1 border border-slate-500 w-12 text-blue-300">STK</th>
                     <th key={`${g}-v`}  className="px-1 py-1 border border-slate-500 w-12 text-green-300">VTE</th>
-                    <th key={`${g}-sp`} className="px-1 py-1 border border-slate-500 w-10">S%</th>
-                    <th key={`${g}-vp`} className="px-1 py-1 border border-slate-500 w-14">Val.</th>
                   </>
                 ))}
                 <th className="border border-slate-500"></th>
@@ -432,12 +434,7 @@ export default function ChiffresTab() {
                             min="0"
                           />
                         </td>
-                        <td key={`${g}-sp`} className="border border-gray-200 text-center text-gray-500 px-1">
-                          {line[`${g}S`] || 0}%
-                        </td>
-                        <td key={`${g}-vp`} className="border border-gray-200 text-center text-gray-500 px-1">
-                          {(line[`${g}V`] || 0).toLocaleString()}
-                        </td>
+
                       </>
                     ))}
 
@@ -473,8 +470,7 @@ export default function ChiffresTab() {
                     <>
                       <td key={`t-${g}-s`}  className="px-1 py-2 text-center border border-gray-300 text-blue-700">{tS.toLocaleString()}</td>
                       <td key={`t-${g}-v`}  className="px-1 py-2 text-center border border-gray-300 text-green-700">{tV.toLocaleString()}</td>
-                      <td key={`t-${g}-sp`} className="px-1 py-2 text-center border border-gray-300 text-gray-600">{tSp}%</td>
-                      <td key={`t-${g}-vp`} className="px-1 py-2 text-center border border-gray-300 text-gray-600">{tVp.toLocaleString()}</td>
+
                     </>
                   );
                 })}

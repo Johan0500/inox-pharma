@@ -3,6 +3,7 @@ import { useQuery }    from "@tanstack/react-query";
 import { Calendar, BarChart2, X, ShieldAlert } from "lucide-react";
 import api from "../../../services/api";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useLab }  from "../../../contexts/LabContext";
 
 const JOURS       = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
 const COLS_MED    = ["MG","SPECIALS","INTERNES"];
@@ -10,7 +11,8 @@ const COLS_PARA   = ["INFIRMIERS","SAGE_F","PIQUTERIES","OFFICINES"];
 const ALL_COLS    = [...COLS_MED, ...COLS_PARA];
 
 export default function ReportsTab() {
-  const { user } = useAuth();
+  const { user }       = useAuth();
+  const { selectedLab } = useLab();
 
   // ── Contrôle d'accès ─────────────────────────────────────
   const canView = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
@@ -23,20 +25,23 @@ export default function ReportsTab() {
   const { data, isLoading } = useQuery<{
     reports: any[]; total: number; page: number; pages: number;
   }>({
-    queryKey: ["reports-admin", page, filterDelegate, filterFrom, filterTo],
-    queryFn:  () => api.get("/reports", { params: {
-      page, limit: 50,
-      delegateId: filterDelegate || undefined,
-      from: filterFrom || undefined,
-      to:   filterTo   || undefined,
-    }}).then((r) => r.data),
+    queryKey: ["reports-admin", page, filterDelegate, filterFrom, filterTo, selectedLab],
+    queryFn:  () => api.get("/reports", {
+      params: {
+        page, limit: 50,
+        delegateId: filterDelegate || undefined,
+        from: filterFrom || undefined,
+        to:   filterTo   || undefined,
+      },
+      headers: { "X-Lab": selectedLab || "all" },
+    }).then((r) => r.data),
     placeholderData: (prev) => prev,
     enabled: canView,
   });
 
   const { data: delegates } = useQuery({
-    queryKey: ["delegates-list"],
-    queryFn:  () => api.get("/delegates").then((r) => r.data),
+    queryKey: ["delegates-list", selectedLab],
+    queryFn:  () => api.get("/delegates", { headers: { "X-Lab": selectedLab || "all" } }).then((r) => r.data),
     staleTime: 5 * 60 * 1000,
     enabled: canView,
   });
