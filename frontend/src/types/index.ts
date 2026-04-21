@@ -1,24 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// INOX PHARMA — TOUS LES FICHIERS SOURCE FRONTEND
-// Créez chaque fichier dans le chemin indiqué par le commentaire de titre
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ────────────────────────────────────────────────────────────────────────────
-// FICHIER : frontend/src/index.css
-// ────────────────────────────────────────────────────────────────────────────
-/*
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@import "leaflet/dist/leaflet.css";
-
-body { font-family: "Inter", system-ui, sans-serif; background-color: #F0F4F8; }
-.leaflet-container { border-radius: 12px; }
-*/
-
-// ────────────────────────────────────────────────────────────────────────────
-// FICHIER : frontend/src/types/index.ts
-// ────────────────────────────────────────────────────────────────────────────
 export type Role = "SUPER_ADMIN" | "ADMIN" | "DELEGATE";
 export type DelegateStatus = "EN_VISITE" | "EN_DEPLACEMENT" | "EN_PAUSE" | "INACTIF";
 
