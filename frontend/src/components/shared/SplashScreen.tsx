@@ -49,14 +49,14 @@ export default function SplashScreen({ onComplete }: Props) {
           transition: "all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}>
           <div style={{
-            width: 120, height: 120, borderRadius: 32,
-            background: "rgba(255,255,255,0.12)",
-            backdropFilter: "blur(20px)",
-            border: "2px solid rgba(255,255,255,0.25)",
+            width: 120, height: 120, borderRadius: "50%",
+            background: "white",
+            border: "4px solid rgba(255,255,255,0.5)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 25px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
+            boxShadow: "0 25px 60px rgba(0,0,0,0.3), 0 0 0 8px rgba(255,255,255,0.1)",
+            overflow: "hidden",
           }}>
-            <span style={{ fontSize: 56 }}>🏥</span>
+            <img src="/logo.png" alt="INOX PHARMA" style={{ width: 110, height: 110, objectFit: "contain" }} />
           </div>
         </div>
 

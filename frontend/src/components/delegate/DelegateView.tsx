@@ -148,6 +148,15 @@ export default function DelegateView() {
 
         {/* Logo */}
         <div style={{ padding: "20px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 }}>
+          {/* Logo INOX PHARMA */}
+          {!collapsed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, overflow: "hidden", background: "white", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <img src="/logo.png" alt="INOX PHARMA" style={{ width: 28, height: 28, objectFit: "contain" }} />
+              </div>
+              <p style={{ color: "white", fontFamily: "Georgia,serif", fontSize: 12, fontWeight: 700, margin: 0, letterSpacing: 1 }}>INOX PHARMA</p>
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <AvatarBubble size={36} />
             {!collapsed && (

@@ -117,8 +117,8 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
         {/* Logo */}
         <div style={{ padding:"20px 16px", borderBottom:"1px solid rgba(255,255,255,0.1)", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:40, height:40, borderRadius:12, flexShrink:0, background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:20 }}>🏥</span>
+            <div style={{ width:40, height:40, borderRadius:12, flexShrink:0, overflow:"hidden", background:"white", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}>
+              <img src="/logo.png" alt="INOX PHARMA" style={{ width:36, height:36, objectFit:"contain" }} />
             </div>
             {!collapsed && (
               <div style={{ overflow:"hidden" }}>
