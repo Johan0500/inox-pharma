@@ -64,15 +64,15 @@ export default function LoginPage() {
         {/* Logo + titre */}
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{
-            width:80, height:80, borderRadius:24,
-            background:"rgba(255,255,255,0.15)",
-            backdropFilter:"blur(20px)",
-            border:"2px solid rgba(255,255,255,0.3)",
+            width:90, height:90, borderRadius:"50%",
+            background:"white",
+            border:"4px solid rgba(255,255,255,0.5)",
             display:"flex", alignItems:"center", justifyContent:"center",
             margin:"0 auto 16px",
-            boxShadow:"0 20px 50px rgba(0,0,0,0.2)",
+            boxShadow:"0 20px 50px rgba(0,0,0,0.25), 0 0 0 8px rgba(255,255,255,0.1)",
+            overflow:"hidden",
           }}>
-            <span style={{ fontSize:36 }}>🏥</span>
+            <img src="/logo.png" alt="INOX PHARMA" style={{ width:82, height:82, objectFit:"contain" }} />
           </div>
           <h1 style={{
             fontFamily:"Georgia, serif",

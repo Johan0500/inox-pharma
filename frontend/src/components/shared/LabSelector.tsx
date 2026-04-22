@@ -93,8 +93,8 @@ export default function LabSelector({ onSelect }: Props) {
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:48 }}>
           <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-            <div style={{ width:52, height:52, borderRadius:16, background:"rgba(255,255,255,0.15)", backdropFilter:"blur(20px)", border:"1.5px solid rgba(255,255,255,0.25)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 25px rgba(0,0,0,0.15)" }}>
-              <span style={{ fontSize:24 }}>🏥</span>
+            <div style={{ width:52, height:52, borderRadius:"50%", background:"white", border:"2.5px solid rgba(255,255,255,0.5)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 25px rgba(0,0,0,0.2)", overflow:"hidden" }}>
+              <img src="/logo.png" alt="INOX PHARMA" style={{ width:46, height:46, objectFit:"contain" }} />
             </div>
             <div>
               <h1 style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:"white", margin:0, letterSpacing:2 }}>INOX PHARMA</h1>
