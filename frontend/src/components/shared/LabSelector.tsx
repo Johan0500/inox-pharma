@@ -4,10 +4,11 @@ import { useAuth }  from "../../contexts/AuthContext";
 import { Plus, Trash2, X, Settings } from "lucide-react";
 import api from "../../services/api";
 
-const FIXED_LABS = [
-  { id: "lic-pharma", name: "LIC PHARMA",  emoji: "💊", color: "#065f46", light: "#d1fae5", desc: "Médicaments génériques et spécialités" },
-  { id: "croient",    name: "CROIENT",      emoji: "🔬", color: "#1e40af", light: "#dbeafe", desc: "Solutions thérapeutiques innovantes"  },
-];
+// Plus de labos hardcodés — tout vient de l'API
+const DEFAULT_LAB_META: Record<string, { emoji: string; color: string; light: string; desc: string }> = {
+  "lic-pharma": { emoji: "💊", color: "#065f46", light: "#d1fae5", desc: "Médicaments génériques et spécialités" },
+  "croient":    { emoji: "🔬", color: "#1e40af", light: "#dbeafe", desc: "Solutions thérapeutiques innovantes"  },
+};
 
 const PALETTE = [
   "#065f46","#1e40af","#7c3aed","#b91c1c","#b45309","#0e7490","#166534","#9d174d","#1d4ed8","#92400e"
@@ -37,20 +38,20 @@ export default function LabSelector({ onSelect }: Props) {
     staleTime: 30000,
   });
 
-  // Labos dynamiques = ceux de l'API qui ne sont pas dans FIXED_LABS
-  const dynamicLabs = (apiLabs as any[]).filter(
-    l => !["lic-pharma","croient"].includes(l.name.toLowerCase())
-  ).map(l => ({
-    id:    l.name.toLowerCase(),
-    name:  l.name.toUpperCase(),
-    emoji: l.emoji || "🏭",
-    color: l.color || "#7c3aed",
-    light: l.color ? l.color + "22" : "#ede9fe",
-    desc:  l.description || "Laboratoire personnalisé",
-    apiId: l.id,
-  }));
-
-  const allLabs = [...FIXED_LABS, ...dynamicLabs];
+  // Tous les labos viennent uniquement de l'API (plus de hardcode)
+  const allLabs = (apiLabs as any[]).map((l: any) => {
+    const key  = l.name.toLowerCase();
+    const meta = DEFAULT_LAB_META[key] || { emoji: "🏭", color: "#7c3aed", light: "#ede9fe", desc: "Laboratoire" };
+    return {
+      id:    key,
+      name:  l.name.toUpperCase(),
+      emoji: l.emoji  || meta.emoji,
+      color: l.color  || meta.color,
+      light: l.color  ? l.color + "22" : meta.light,
+      desc:  l.description || meta.desc,
+      apiId: l.id,
+    };
+  });
 
   const createLabMut = useMutation({
     mutationFn: (body: any) => api.post("/laboratories/create", body),
@@ -237,30 +238,21 @@ export default function LabSelector({ onSelect }: Props) {
                 Laboratoires actifs ({allLabs.length})
               </h3>
               <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:28 }}>
-                {allLabs.map(lab => {
-                  const isFixed = ["lic-pharma","croient"].includes(lab.id);
-                  const apiLab  = (apiLabs as any[]).find(l => l.name.toLowerCase() === lab.id);
-                  return (
+                {allLabs.map(lab => (
                     <div key={lab.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", background:"#f9fafb", borderRadius:12, border:"1px solid #f3f4f6" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                         <div style={{ width:36, height:36, borderRadius:10, background: lab.light, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{lab.emoji}</div>
                         <div>
                           <p style={{ margin:0, fontWeight:700, fontSize:14, color: lab.color }}>{lab.name}</p>
-                          <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>{isFixed ? "Laboratoire fixe" : "Laboratoire personnalisé"}</p>
+                          <p style={{ margin:0, fontSize:11, color:"#9ca3af" }}>En base de données</p>
                         </div>
                       </div>
-                      {!isFixed && (
-                        <button onClick={() => setConfirmDelLab(lab.id)}
-                          style={{ display:"flex", alignItems:"center", gap:6, background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:10, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
-                          <Trash2 size={13} /> Supprimer
-                        </button>
-                      )}
-                      {isFixed && (
-                        <span style={{ fontSize:11, color:"#9ca3af", fontStyle:"italic" }}>Protégé</span>
-                      )}
+                      <button onClick={() => setConfirmDelLab(lab.id)}
+                        style={{ display:"flex", alignItems:"center", gap:6, background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:10, padding:"6px 12px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                        <Trash2 size={13} /> Supprimer
+                      </button>
                     </div>
-                  );
-                })}
+                ))}
               </div>
 
               {/* Formulaire nouveau labo */}
@@ -357,8 +349,9 @@ export default function LabSelector({ onSelect }: Props) {
               </button>
               <button
                 onClick={() => {
-                  const apiLab = (apiLabs as any[]).find(l => l.name.toLowerCase() === confirmDelLab);
-                  if (apiLab) deleteLabMut.mutate(apiLab.id);
+                  const lab = allLabs.find(l => l.id === confirmDelLab);
+                  if (lab?.apiId) deleteLabMut.mutate(lab.apiId);
+                  else alert("Laboratoire non trouvé.");
                 }}
                 disabled={deleteLabMut.isPending}
                 style={{ flex:1, background:"#dc2626", color:"white", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer" }}>

@@ -21,7 +21,7 @@ export default function PharmaciesTab() {
   const [search,    setSearch]    = useState("");
   const [grossiste, setGrossite]  = useState("all");
   const [zone,      setZone]      = useState("all");
-  const [ville,     setVille]     = useState("all");
+
   const [page,      setPage]      = useState(1);
   const [selected,  setSelected]  = useState<any>(null);
   const [showAddPharmacy, setShowAddPharmacy] = useState(false);
@@ -32,7 +32,7 @@ export default function PharmaciesTab() {
   const [addError,        setAddError]        = useState("");
   const [addSuccess,      setAddSuccess]      = useState("");
 
-  const params = { search, grossiste, zone, ville, page, limit: 50 };
+  const params = { search, grossiste, zone, page, limit: 50 };
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["pharmacies", params],
@@ -70,8 +70,8 @@ export default function PharmaciesTab() {
   const total      = data?.total      || 0;
   const pages      = data?.pages      || 1;
 
-  const resetFilters = () => { setSearch(""); setGrossite("all"); setZone("all"); setVille("all"); setPage(1); };
-  const hasFilters = search || grossiste !== "all" || zone !== "all" || ville !== "all";
+  const resetFilters = () => { setSearch(""); setGrossite("all"); setZone("all"); setPage(1); };
+  const hasFilters = search || grossiste !== "all" || zone !== "all";
 
   const handleAddPharmacy = () => {
     setAddError(""); setAddSuccess("");
@@ -126,7 +126,7 @@ export default function PharmaciesTab() {
             const colors = GROSSISTE_COLORS[key] || { bg:"bg-gray-50", text:"text-gray-700", dot:"bg-gray-400" };
             return (
               <button key={g.grossiste}
-                onClick={() => { setGrossite(grossiste === key ? "all" : g.grossiste); setPage(1); }}
+                onClick={() => { setGrossite(grossiste === key ? "all" : key); setPage(1); }}
                 className={`${colors.bg} rounded-2xl p-4 text-left hover:shadow-md transition cursor-pointer border-2
                   ${grossiste === key ? "border-current shadow-md" : "border-transparent"}`}>
                 <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} mb-2`} />
@@ -148,11 +148,7 @@ export default function PharmaciesTab() {
               className="w-full border rounded-xl pl-8 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none"
               placeholder="Rechercher une pharmacie..." />
           </div>
-          <select value={grossiste} onChange={(e) => { setGrossite(e.target.value); setPage(1); }}
-            className="border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
-            <option value="all">Tous grossistes</option>
-            {(filters?.grossistes || []).map((g: string) => <option key={g} value={g.toLowerCase()}>{g.toUpperCase()}</option>)}
-          </select>
+
           <select value={zone} onChange={(e) => { setZone(e.target.value); setPage(1); }}
             className="border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
             <option value="all">Toutes zones</option>

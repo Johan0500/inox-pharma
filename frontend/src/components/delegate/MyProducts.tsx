@@ -187,8 +187,11 @@ export default function MyProducts() {
       {Object.keys(filteredSpecs).length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-100">
           <Package size={40} className="mx-auto mb-3 text-gray-200" />
-          <p className="font-medium">Aucun produit trouvé</p>
-          {search && <button onClick={() => setSearch("")} className="text-emerald-600 text-sm mt-2 hover:underline">Effacer la recherche</button>}
+          <p className="font-medium">Aucun produit disponible</p>
+          {search
+            ? <button onClick={() => setSearch("")} className="text-emerald-600 text-sm mt-2 hover:underline">Effacer la recherche</button>
+            : <p className="text-xs mt-2 max-w-xs mx-auto">L'administrateur n'a pas encore ajouté de produits pour ce laboratoire</p>
+          }
         </div>
       ) : (
         <div className="space-y-2">

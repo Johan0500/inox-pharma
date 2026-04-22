@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import api from "../../../services/api";
+import { useLab } from "../../../contexts/LabContext";
 
 const COLORS = ["#0066CC", "#00A86B", "#F59E0B", "#E74C3C", "#8B5CF6"];
 
@@ -13,13 +14,21 @@ function fmt(value: number | undefined): string {
 
 export default function StatsChiffresTab() {
   const now  = new Date();
+  const { selectedLab } = useLab();
   const [month, setMonth] = useState(`${now.getMonth() + 1}`.padStart(2, "0"));
   const [year,  setYear]  = useState(now.getFullYear());
 
-  const { data: stats = [], isLoading } = useQuery({
+  const { data: allStats = [], isLoading } = useQuery({
     queryKey: ["sales-stats", month, year],
     queryFn:  () => api.get("/sales-reports/stats", { params: { month, year } }).then((r) => r.data),
   });
+
+  // Filtrer STRICTEMENT par labo sélectionné — jamais de mélange entre labos
+  const stats = selectedLab && selectedLab !== "all"
+    ? (allStats as any[]).filter((s: any) =>
+        s.laboratory?.toLowerCase() === selectedLab.toLowerCase()
+      )
+    : (allStats as any[]); // vue globale = tous les labos
 
   const chartData = (stats as any[]).map((s) => ({
     name:   s.laboratory,
@@ -32,7 +41,14 @@ export default function StatsChiffresTab() {
     <div className="space-y-6">
       {/* En-tête + filtres */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-gray-800">Statistiques Chiffres</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Statistiques Chiffres</h2>
+          {selectedLab && selectedLab !== "all" && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              Laboratoire : <span className="font-semibold text-gray-700">{selectedLab.toUpperCase()}</span>
+            </p>
+          )}
+        </div>
         <div className="flex gap-3">
           <select value={month} onChange={(e) => setMonth(e.target.value)}
             className="border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">

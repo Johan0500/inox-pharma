@@ -17,6 +17,7 @@ export default function MyPharmacies() {
   const [page,      setPage]      = useState(1);
   const [selected,  setSelected]  = useState<any | null>(null);
 
+  // grossiste est déjà en lowercase — backend fait equals case-insensitive
   const params = { search, grossiste, zone, page, limit: 50 };
 
   const { data, isLoading, isFetching, refetch } = useQuery({
@@ -73,10 +74,10 @@ export default function MyPharmacies() {
           {stats.byGrossiste.map((g: any) => {
             const key    = g.grossiste.toLowerCase();
             const colors = GROSSISTE_COLORS[key] || { bg:"bg-gray-50", text:"text-gray-700", dot:"bg-gray-400" };
-            const isActive = grossiste === key;
+            const isActive = grossiste.toLowerCase() === key;
             return (
               <button key={g.grossiste}
-                onClick={() => { setGrossite(isActive ? "all" : g.grossiste); setPage(1); }}
+                onClick={() => { setGrossite(isActive ? "all" : g.grossiste.toLowerCase()); setPage(1); }}
                 className={`${colors.bg} rounded-2xl p-4 text-left transition border-2 ${isActive ? "border-current shadow-md" : "border-transparent hover:shadow-sm"}`}>
                 <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} mb-2`} />
                 <p className={`text-xs font-bold uppercase ${colors.text}`}>{g.grossiste}</p>
