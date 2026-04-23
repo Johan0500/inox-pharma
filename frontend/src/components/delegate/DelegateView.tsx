@@ -19,6 +19,7 @@ import MyDashboard    from "./MyDashboard";
 import MyProfile      from "./MyProfile";
 import MyPharmacies   from "./MyPharmacies";
 import ChangePasswordModal from "../shared/ChangePasswordModal";
+import CheckInButton      from "./CheckInButton";
 import ProfileModal        from "../shared/ProfileModal";
 import MyStrategie from "./MyStrategie";
 
@@ -302,6 +303,9 @@ export default function DelegateView() {
       </main>
 
       {/* Bottom nav mobile supprimée — navigation via sidebar uniquement */}
+
+      {/* Bouton pointage flottant */}
+      <CheckInButton />
 
       {showPwd     && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
       {showProfile && <ProfileModal       onClose={() => setShowProfile(false)} />}

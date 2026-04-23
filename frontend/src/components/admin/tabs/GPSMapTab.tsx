@@ -61,6 +61,10 @@ export default function GPSMapTab() {
 
   const [positions,    setPositions]    = useState<Record<string, GPSPosition & { laboratory?: string }>>({});
   const [trails,       setTrails]       = useState<TrailMap>({});
+  const [checkIns,     setCheckIns]     = useState<Array<{
+    id: string; delegateId: string; name: string; laboratory: string;
+    latitude: number; longitude: number; placeName: string; timestamp: string;
+  }>>([]);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [showTrails,   setShowTrails]   = useState(true);
 
@@ -163,6 +167,19 @@ export default function GPSMapTab() {
           };
         });
       }
+    });
+
+    socket.on("delegate_check_in", (data: any) => {
+      setCheckIns(prev => [{
+        id: `${data.delegateId}_${Date.now()}`,
+        delegateId: data.delegateId,
+        name: data.name,
+        laboratory: data.laboratory || "",
+        latitude: data.latitude,
+        longitude: data.longitude,
+        placeName: data.placeName,
+        timestamp: data.timestamp,
+      }, ...prev.slice(0, 49)]); // garder max 50 check-ins
     });
 
     socket.on("delegate_offline", ({ delegateId }: { delegateId: string }) => {
@@ -394,6 +411,42 @@ export default function GPSMapTab() {
               </Popup>
             </Marker>
           ))}
+          {/* ── Marqueurs Check-in ── */}
+          {checkIns.map((ci) => {
+            const ciIcon = L.divIcon({
+              html: `<div style="
+                background:#7c3aed;color:white;
+                padding:5px 10px;border-radius:20px;
+                font-size:11px;font-weight:700;white-space:nowrap;
+                box-shadow:0 3px 10px rgba(0,0,0,0.35);
+                border:2px solid rgba(255,255,255,0.9);
+                font-family:system-ui,sans-serif;
+                display:flex;align-items:center;gap:4px;
+              "><span style="font-size:13px">📍</span>${ci.placeName.length > 18 ? ci.placeName.slice(0,18)+"…" : ci.placeName}</div>`,
+              className: "",
+              iconAnchor: [30, 15],
+            });
+            return (
+              <Marker key={ci.id} position={[ci.latitude, ci.longitude]} icon={ciIcon} zIndexOffset={2000}>
+                <Popup>
+                  <div className="text-sm min-w-[220px] space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📍</span>
+                      <p className="font-bold text-purple-700 text-base">{ci.placeName}</p>
+                    </div>
+                    <p className="text-gray-700 font-medium">{ci.name}</p>
+                    {ci.laboratory && <p className="text-xs text-purple-500 font-semibold">🏭 {ci.laboratory}</p>}
+                    <p className="text-xs text-gray-400">
+                      🕐 {new Date(ci.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                    <div className="bg-purple-50 rounded-lg px-2 py-1 text-xs text-purple-700 font-semibold text-center">
+                      ✅ Pointage validé
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
 
         {allPositions.length === 0 && (
@@ -407,6 +460,46 @@ export default function GPSMapTab() {
           </div>
         )}
       </div>
+
+      {/* ── Panneau check-ins récents ── */}
+      {checkIns.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-purple-700 px-5 py-3 flex items-center justify-between">
+            <h3 className="font-bold text-white flex items-center gap-2">
+              📍 Pointages récents
+              <span className="bg-white text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">{checkIns.length}</span>
+            </h3>
+            <button
+              onClick={() => setCheckIns([])}
+              className="text-purple-200 hover:text-white text-xs transition"
+            >
+              Effacer
+            </button>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
+            {checkIns.map((ci) => (
+              <div key={ci.id} className="flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0 text-lg">
+                  📍
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm truncate">{ci.placeName}</p>
+                  <p className="text-xs text-gray-500">{ci.name} {ci.laboratory ? `· ${ci.laboratory}` : ""}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-purple-600 font-semibold">
+                    {new Date(ci.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(ci.timestamp).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

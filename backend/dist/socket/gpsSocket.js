@@ -82,6 +82,47 @@ function setupGPSSocket(io) {
                 console.error("Erreur GPS:", err);
             }
         });
+        // ── Check-in pointage manuel ──────────────────────────
+        socket.on("check_in", async (data) => {
+            try {
+                if (!delegateId) return;
+                const { latitude, longitude, placeName, timestamp } = data;
+                // Récupérer les infos du délégué
+                const delegate = await prisma.delegate.findUnique({
+                    where: { id: delegateId },
+                    include: {
+                        user: { select: { firstName: true, lastName: true } },
+                        laboratory: { select: { name: true } },
+                    },
+                });
+                if (!delegate) return;
+                // Sauvegarder dans GPSLog avec le nom du lieu dans status (hack léger)
+                await prisma.gPSLog.create({
+                    data: {
+                        delegateId,
+                        latitude,
+                        longitude,
+                        status: "EN_VISITE",
+                    },
+                });
+                // Broadcaster aux admins
+                io.to("admins").emit("delegate_check_in", {
+                    delegateId,
+                    name: `${delegate.user.firstName} ${delegate.user.lastName}`,
+                    zone: delegate.zone,
+                    laboratory: delegate.laboratory?.name || "",
+                    latitude,
+                    longitude,
+                    placeName: placeName || "Lieu non précisé",
+                    timestamp: timestamp || new Date().toISOString(),
+                });
+                console.log(`📍 Check-in reçu de ${delegateId}: ${placeName} (${latitude}, ${longitude})`);
+            }
+            catch (err) {
+                console.error("Erreur check_in:", err);
+            }
+        });
+
         socket.on("disconnect", async () => {
             console.log(`🔌 Déconnecté: ${userId}`);
             if (delegateId) {
