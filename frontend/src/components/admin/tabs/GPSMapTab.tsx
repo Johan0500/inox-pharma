@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import { io } from "socket.io-client";
@@ -52,7 +52,37 @@ function createIcon(status: DelegateStatus, name: string, color?: string) {
 }
 
 interface TrailPoint { lat: number; lng: number; timestamp: string; status: string; }
-type TrailMap = Record<string, TrailPoint[]>;
+type TrailMap  = Record<string, TrailPoint[]>;
+type RoutedMap = Record<string, [number, number][]>;
+
+// ── OSRM snap-to-road (gratuit, pas de clé API) ─────────────────
+// Découpe en chunks de 100 pts pour éviter les URLs trop longues
+async function fetchOSRMRoute(points: TrailPoint[]): Promise<[number, number][]> {
+  if (points.length < 2) return points.map(p => [p.lat, p.lng]);
+  const CHUNK = 100;
+  const allCoords: [number, number][] = [];
+  for (let i = 0; i < points.length - 1; i += CHUNK - 1) {
+    const chunk  = points.slice(i, i + CHUNK);
+    const coords = chunk.map(p => `${p.lng},${p.lat}`).join(";");
+    const url    = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    try {
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (json.code === "Ok" && json.routes?.[0]?.geometry?.coordinates) {
+        const routeCoords: [number, number][] = json.routes[0].geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng]
+        );
+        if (allCoords.length > 0) routeCoords.shift(); // éviter doublon à la jonction
+        allCoords.push(...routeCoords);
+      } else {
+        chunk.forEach(p => allCoords.push([p.lat, p.lng]));
+      }
+    } catch {
+      chunk.forEach(p => allCoords.push([p.lat, p.lng]));
+    }
+  }
+  return allCoords;
+}
 
 export default function GPSMapTab() {
   const { token }              = useAuth();
@@ -61,6 +91,8 @@ export default function GPSMapTab() {
 
   const [positions,    setPositions]    = useState<Record<string, GPSPosition & { laboratory?: string }>>({});
   const [trails,       setTrails]       = useState<TrailMap>({});
+  const [routedTrails, setRoutedTrails] = useState<RoutedMap>({});
+  const [routingIds,   setRoutingIds]   = useState<Set<string>>(new Set());
   const [checkIns,     setCheckIns]     = useState<Array<{
     id: string; delegateId: string; name: string; laboratory: string;
     latitude: number; longitude: number; placeName: string; timestamp: string;
@@ -139,7 +171,26 @@ export default function GPSMapTab() {
       });
     });
     setTrails(trailMap);
+    // Réinitialiser les routes calculées quand la date change
+    setRoutedTrails({});
+    setRoutingIds(new Set());
   }, [historyData]);
+
+  // ── Calcul des routes OSRM pour chaque délégué ─────────────────
+  useEffect(() => {
+    if (!showTrails) return;
+    Object.entries(trails).forEach(([delegateId, points]) => {
+      if (points.length < 2) return;
+      if (routedTrails[delegateId] !== undefined) return; // déjà calculé
+      if (routingIds.has(delegateId)) return;            // en cours
+
+      setRoutingIds(prev => new Set([...prev, delegateId]));
+      fetchOSRMRoute(points).then(coords => {
+        setRoutedTrails(prev => ({ ...prev, [delegateId]: coords }));
+        setRoutingIds(prev => { const s = new Set(prev); s.delete(delegateId); return s; });
+      });
+    });
+  }, [trails, showTrails]);
 
   // Socket temps réel
   useEffect(() => {
@@ -237,6 +288,11 @@ export default function GPSMapTab() {
               showTrails ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
             }`}>
             🗺️ {showTrails ? "Trajets ON" : "Trajets OFF"}
+            {showTrails && routingIds.size > 0 && (
+              <span className="text-xs bg-white text-blue-600 px-1.5 py-0.5 rounded-full font-bold animate-pulse">
+                ⏳ {routingIds.size}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -350,20 +406,29 @@ export default function GPSMapTab() {
             attribution='© <a href="https://www.openstreetmap.org">OpenStreetMap</a>'
           />
 
-          {/* Tracés pointillés */}
+          {/* Tracés suivant les routes réelles (OSRM) */}
           {showTrails && Object.entries(trails).map(([delegateId, points]) => {
             if (points.length < 2) return null;
-            // N'afficher que si le délégué passe le filtre
             const pos = positions[delegateId];
             if (filtered.length > 0 && !filtered.find(p => p.delegateId === delegateId)) {
-              // Si des filtres actifs, n'afficher le trajet que si le délégué est dans les résultats
               if (hasFilters) return null;
             }
             const color = getDelegateColor(delegateId);
-            const latlngs: [number, number][] = points.map(p => [p.lat, p.lng]);
+            // Utiliser la route OSRM si disponible, sinon lignes droites en attendant
+            const latlngs: [number, number][] = routedTrails[delegateId]
+              ?? points.map(p => [p.lat, p.lng]);
+            const isRouting = routingIds.has(delegateId);
             return (
               <div key={delegateId}>
-                <Polyline positions={latlngs} pathOptions={{ color, weight: 3, opacity: 0.75, dashArray: "8,5" }} />
+                <Polyline
+                  positions={latlngs}
+                  pathOptions={{
+                    color,
+                    weight:     isRouting ? 2 : 4,
+                    opacity:    isRouting ? 0.4 : 0.85,
+                    dashArray:  isRouting ? "6,5" : undefined, // pointillé pendant le chargement
+                  }}
+                />
                 {points.map((pt, i) => {
                   const isFirst = i === 0;
                   const isLast  = i === points.length - 1;
