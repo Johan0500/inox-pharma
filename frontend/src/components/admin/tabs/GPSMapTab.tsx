@@ -221,16 +221,21 @@ export default function GPSMapTab() {
     });
 
     socket.on("delegate_check_in", (data: any) => {
-      setCheckIns(prev => [{
-        id: `${data.delegateId}_${Date.now()}`,
-        delegateId: data.delegateId,
-        name: data.name,
-        laboratory: data.laboratory || "",
-        latitude: data.latitude,
-        longitude: data.longitude,
-        placeName: data.placeName,
-        timestamp: data.timestamp,
-      }, ...prev.slice(0, 49)]); // garder max 50 check-ins
+      // Dédoublonnage par delegateId + timestamp pour éviter les doublons à la connexion
+      const newId = `${data.delegateId}_${data.timestamp}`;
+      setCheckIns(prev => {
+        if (prev.some(ci => ci.id === newId)) return prev; // déjà présent
+        return [{
+          id:         newId,
+          delegateId: data.delegateId,
+          name:       data.name,
+          laboratory: data.laboratory || "",
+          latitude:   data.latitude,
+          longitude:  data.longitude,
+          placeName:  data.placeName,
+          timestamp:  data.timestamp,
+        }, ...prev].slice(0, 50);
+      });
     });
 
     socket.on("delegate_offline", ({ delegateId }: { delegateId: string }) => {
