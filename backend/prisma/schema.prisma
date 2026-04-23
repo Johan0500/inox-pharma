@@ -184,6 +184,7 @@ model Delegate {
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   objectives   DelegateObjective[]
   gpsLogs      GPSLog[]
+  checkIns     CheckIn[]
   visitReports VisitReport[]
   planning     WeeklyPlanning[]
 }
@@ -196,6 +197,16 @@ model GPSLog {
   status     DelegateStatus
   timestamp  DateTime       @default(now())
   delegate   Delegate       @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+}
+
+model CheckIn {
+  id         String   @id @default(cuid())
+  delegateId String
+  latitude   Float
+  longitude  Float
+  placeName  String
+  timestamp  DateTime @default(now())
+  delegate   Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
 }
 
 model WeeklyPlanning {
