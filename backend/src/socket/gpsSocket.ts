@@ -91,6 +91,50 @@ export function setupGPSSocket(io: Server) {
       }
     });
 
+    // ── Pointage manuel du délégué ──────────────────────────────
+    socket.on("check_in", async (data: {
+      latitude:     number;
+      longitude:    number;
+      placeName:    string;
+      delegateName: string;
+      timestamp:    string;
+    }) => {
+      try {
+        if (!delegateId) return;
+
+        const { latitude, longitude, placeName, timestamp } = data;
+
+        // Récupérer les infos complètes du délégué (nom + labo)
+        const delegate = await prisma.delegate.findUnique({
+          where:   { id: delegateId },
+          include: {
+            user:       { select: { firstName: true, lastName: true } },
+            laboratory: { select: { name: true } },
+          },
+        });
+
+        if (!delegate) return;
+
+        const name       = `${delegate.user.firstName} ${delegate.user.lastName}`;
+        const laboratory = delegate.laboratory?.name || "";
+
+        // Diffuser le check-in à tous les admins connectés
+        io.to("admins").emit("delegate_check_in", {
+          delegateId,
+          name,
+          laboratory,
+          latitude,
+          longitude,
+          placeName,
+          timestamp: timestamp || new Date().toISOString(),
+        });
+
+        console.log(`📍 Check-in de ${name} (${laboratory}) : ${placeName}`);
+      } catch (err) {
+        console.error("Erreur check_in:", err);
+      }
+    });
+
     socket.on("disconnect", async () => {
       console.log(`🔌 Déconnecté: ${userId}`);
       if (delegateId) {
