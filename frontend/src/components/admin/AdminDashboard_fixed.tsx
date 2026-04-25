@@ -6,6 +6,7 @@ import {
   FileText, Package, BarChart3, Settings, LogOut,
   TrendingUp, DollarSign, MessageCircle, Shield,
   Lock, Target, ArrowLeft, Mail, BookOpen, MapPin, User,
+  Bell, CheckCircle, ClipboardList, Download,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api          from "../../services/api";
@@ -26,6 +27,13 @@ import ObjectivesTab     from "./tabs/ObjectivesTab";
 import StrategieTab      from "./tabs/StrategieTab";
 import EmailScheduleTab  from "./tabs/EmailScheduleTab";
 import GPSMapTab         from "./tabs/GPSMapTab";
+import PDFReportTab      from "./tabs/PDFReportTab";
+import AlertesTab        from "./tabs/AlertesTab";
+import SuiviObjectifsTab from "./tabs/SuiviObjectifsTab";
+import ValidationRapportsTab from "./tabs/ValidationRapportsTab";
+import TemplatesVisiteTab    from "./tabs/TemplatesVisiteTab";
+import PermissionsTab    from "./tabs/PermissionsTab";
+import ExportTab         from "./tabs/ExportTab";
 import ChangePasswordModal    from "../shared/ChangePasswordModal";
 import ProfileModal            from "../shared/ProfileModal";
 import PushNotificationToggle from "../shared/PushNotificationToggle";
@@ -65,7 +73,13 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
     { id: "stats",          label: "Statistiques",    icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "messages",       label: "Messagerie",      icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "history",        label: "Connexions",      icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "email-schedule", label: "Email Auto",      icon: Mail,            roles: ["SUPER_ADMIN"]         },
+    { id: "pdf-report",   label: "Rapport PDF",      icon: FileText,       roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "alertes",      label: "Alertes",           icon: Bell,           roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "suivi-obj",    label: "Suivi Objectifs",   icon: Target,         roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "validation",   label: "Validation",        icon: CheckCircle,    roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "templates",    label: "Templates Visite",  icon: ClipboardList,  roles: ["SUPER_ADMIN","ADMIN"] },
+    { id: "permissions",  label: "Permissions",       icon: Shield,         roles: ["SUPER_ADMIN"]         },
+    { id: "export",       label: "Export Excel/CSV",  icon: Download,       roles: ["SUPER_ADMIN","ADMIN"] },
     { id: "users",          label: "Utilisateurs",    icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
   ].filter((t) => t.roles.includes(user?.role || ""));
 
@@ -86,6 +100,13 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
       case "messages":       return <MessagesTab />;
       case "history":        return <LoginHistoryTab />;
       case "email-schedule": return <EmailScheduleTab />;
+      case "pdf-report":   return <PDFReportTab />;
+      case "alertes":      return <AlertesTab />;
+      case "suivi-obj":    return <SuiviObjectifsTab />;
+      case "validation":   return <ValidationRapportsTab />;
+      case "templates":    return <TemplatesVisiteTab />;
+      case "permissions":  return <PermissionsTab />;
+      case "export":       return <ExportTab />;
       case "users":          return <UsersTab />;
       default:               return <OverviewTab />;
     }

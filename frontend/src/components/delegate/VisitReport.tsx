@@ -4,6 +4,7 @@ import { ClipboardList, Save, Check }  from "lucide-react";
 import api         from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { isOnline, saveReportOffline } from "../../services/offlineSync";
+import PhotoVisit  from "./PhotoVisit";
 
 // ── Types ─────────────────────────────────────────────────────
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"] as const;
@@ -59,6 +60,7 @@ export default function VisitReport() {
   const [reflexMedical, setReflexMedical] = useState("");
   const [activConc,     setActivConc]     = useState("");
   const [propositions,  setPropositions]  = useState("");
+  const [photos,        setPhotos]        = useState<string[]>([]);
   const [rahSuccess,    setRahSuccess]    = useState(false);
   const [rahError,      setRahError]      = useState("");
   const [submitting,    setSubmitting]    = useState(false);
@@ -104,6 +106,7 @@ export default function VisitReport() {
       specialty:     "RAPPORT HEBDOMADAIRE",
       notes:         notesComplet,
       productsShown: `Total visites: ${grandTotal}`,
+      photos,
     };
 
     setSubmitting(true);
@@ -122,6 +125,7 @@ export default function VisitReport() {
         setReflexPharm(""); setReflexMedical("");
         setActivConc(""); setPropositions("");
         setSemaineDu(""); setSemaineAu(""); setMois("");
+        setPhotos([]);
         setRahSuccess(false);
       }, 2500);
     } catch {
@@ -251,6 +255,15 @@ export default function VisitReport() {
             />
           </div>
         ))}
+      </div>
+
+      {/* Photos de visite */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <p className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
+          📸 Photos de visite
+          <span className="text-gray-400 font-normal">— optionnel, max 5 photos</span>
+        </p>
+        <PhotoVisit onPhotosChange={setPhotos} maxPhotos={5} />
       </div>
 
       {/* Messages */}
