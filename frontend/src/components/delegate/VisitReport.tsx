@@ -1,10 +1,24 @@
 import { useState }                   from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Save, Check }  from "lucide-react";
+import { ClipboardList, Save, Check, ChevronDown, X }  from "lucide-react";
 import api         from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { isOnline, saveReportOffline } from "../../services/offlineSync";
 import PhotoVisit  from "./PhotoVisit";
+
+// ── Charger les templates depuis localStorage (créés par l'admin) ─
+const TEMPLATES_KEY = "visite_templates";
+interface TemplateField {
+  id: string; label: string; type: string;
+  options?: string[]; required: boolean; placeholder: string;
+}
+interface Template {
+  id: string; name: string; category: string;
+  description: string; fields: TemplateField[]; createdAt: string;
+}
+function loadTemplates(): Template[] {
+  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || "[]"); } catch { return []; }
+}
 
 // ── Types ─────────────────────────────────────────────────────
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"] as const;
@@ -65,6 +79,12 @@ export default function VisitReport() {
   const [rahError,      setRahError]      = useState("");
   const [submitting,    setSubmitting]    = useState(false);
 
+  // ── Templates ────────────────────────────────────────────
+  const templates                                  = loadTemplates();
+  const [selectedTemplate, setSelectedTemplate]   = useState<Template | null>(null);
+  const [showTemplates,    setShowTemplates]       = useState(false);
+  const [extraFields,      setExtraFields]         = useState<Record<string, string>>({});
+
   // ── Calculs ──────────────────────────────────────────────
   const getRowTotal = (row: DayRow) =>
     row.MG + row.SPECIALS + row.INTERNES + row.INFIRMIERS + row.SAGE_F + row.PIQUTERIES + row.OFFICINES;
@@ -99,6 +119,14 @@ export default function VisitReport() {
       reflexMedical ? `RÉFLEXIONS MÉDICALES: ${reflexMedical}`           : "",
       activConc     ? `ACTIVITÉS CONCURRENCE: ${activConc}`              : "",
       propositions  ? `PROPOSITIONS VM: ${propositions}`                 : "",
+      // Champs du template sélectionné
+      selectedTemplate && Object.keys(extraFields).length > 0
+        ? `\n=== ${selectedTemplate.name.toUpperCase()} ===\n` +
+          selectedTemplate.fields
+            .filter(f => extraFields[f.id])
+            .map(f => `${f.label}: ${extraFields[f.id]}`)
+            .join("\n")
+        : "",
     ].filter(Boolean).join("\n");
 
     const body = {
@@ -126,6 +154,7 @@ export default function VisitReport() {
         setActivConc(""); setPropositions("");
         setSemaineDu(""); setSemaineAu(""); setMois("");
         setPhotos([]);
+        setSelectedTemplate(null); setExtraFields({});
         setRahSuccess(false);
       }, 2500);
     } catch {
@@ -184,6 +213,97 @@ export default function VisitReport() {
           </div>
         </div>
       </div>
+
+      {/* Sélecteur de template */}
+      {templates.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-gray-700 flex items-center gap-2">
+              <ClipboardList size={13} className="text-pink-500" />
+              Template de visite
+              <span className="text-gray-400 font-normal">(optionnel)</span>
+            </p>
+            {selectedTemplate && (
+              <button
+                type="button"
+                onClick={() => { setSelectedTemplate(null); setExtraFields({}); }}
+                style={{ background:"none", border:"none", cursor:"pointer", color:"#9ca3af" }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Liste déroulante templates */}
+          {!selectedTemplate ? (
+            <div className="grid grid-cols-1 gap-2">
+              {templates.map(tpl => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => { setSelectedTemplate(tpl); setExtraFields({}); setShowTemplates(false); }}
+                  style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#fdf2f8", border:"1.5px solid #fbcfe8", borderRadius:12, cursor:"pointer", textAlign:"left" }}>
+                  <span style={{ fontSize:18 }}>📋</span>
+                  <div>
+                    <p style={{ fontWeight:700, fontSize:13, color:"#111827", margin:0 }}>{tpl.name}</p>
+                    <p style={{ fontSize:11, color:"#9ca3af", margin:0 }}>{tpl.category} · {tpl.fields.length} champ(s)</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"8px 12px", background:"#fdf2f8", borderRadius:10 }}>
+                <span style={{ fontSize:16 }}>📋</span>
+                <div>
+                  <p style={{ fontWeight:700, fontSize:13, color:"#be185d", margin:0 }}>{selectedTemplate.name}</p>
+                  <p style={{ fontSize:11, color:"#9ca3af", margin:0 }}>{selectedTemplate.description}</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {selectedTemplate.fields.map(field => (
+                  <div key={field.id}>
+                    <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#374151", marginBottom:4 }}>
+                      {field.label} {field.required && <span style={{ color:"#dc2626" }}>*</span>}
+                    </label>
+                    {field.type === "textarea" ? (
+                      <textarea
+                        value={extraFields[field.id] || ""}
+                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        rows={2}
+                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", resize:"none", boxSizing:"border-box" }} />
+                    ) : field.type === "select" ? (
+                      <select
+                        value={extraFields[field.id] || ""}
+                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", background:"white", boxSizing:"border-box" }}>
+                        <option value="">-- Choisir --</option>
+                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : field.type === "checkbox" ? (
+                      <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={extraFields[field.id] === "oui"}
+                          onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.checked ? "oui" : "non" }))}
+                          style={{ width:16, height:16, accentColor:"#be185d" }} />
+                        <span style={{ fontSize:13, color:"#374151" }}>{field.placeholder || "Oui"}</span>
+                      </label>
+                    ) : (
+                      <input
+                        type={field.type === "number" ? "number" : "text"}
+                        value={extraFields[field.id] || ""}
+                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        placeholder={field.placeholder}
+                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tableau d'activité */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

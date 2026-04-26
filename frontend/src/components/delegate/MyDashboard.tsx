@@ -1,5 +1,5 @@
 import { useQuery }  from "@tanstack/react-query";
-import { FileText, Building2, TrendingUp, Clock, Target, Calendar, ChevronRight } from "lucide-react";
+import { FileText, Building2, TrendingUp, Clock, Calendar, ChevronRight } from "lucide-react";
 import api           from "../../services/api";
 import { useAuth }   from "../../contexts/AuthContext";
 
@@ -126,46 +126,6 @@ export default function MyDashboard() {
           </div>
         ))}
       </div>
-
-      {/* Objectifs */}
-      {objective && (objective.targetVisits > 0 || objective.targetPharmacies > 0) && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-sm">
-            <Target size={15} className="text-emerald-600" />
-            Objectifs — {now.toLocaleString("fr-FR", { month: "long", year: "numeric" })}
-          </h3>
-          <div className="space-y-3">
-            {objective.targetVisits > 0 && (
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-600 font-medium">Visites</span>
-                  <span className="font-bold text-blue-600">
-                    {totalVisits} / {objective.targetVisits} ({Math.min(Math.round(totalVisits / objective.targetVisits * 100), 100)}%)
-                  </span>
-                </div>
-                <div className="bg-gray-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-blue-500 transition-all"
-                    style={{ width: `${Math.min(totalVisits / objective.targetVisits * 100, 100)}%` }} />
-                </div>
-              </div>
-            )}
-            {objective.targetPharmacies > 0 && (
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-600 font-medium">Pharmacies</span>
-                  <span className="font-bold text-emerald-600">
-                    {totalPharmacies} / {objective.targetPharmacies} ({Math.min(Math.round(totalPharmacies / objective.targetPharmacies * 100), 100)}%)
-                  </span>
-                </div>
-                <div className="bg-gray-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${Math.min(totalPharmacies / objective.targetPharmacies * 100, 100)}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Planning de la semaine */}
       {(planning as any[]).length > 0 && (
