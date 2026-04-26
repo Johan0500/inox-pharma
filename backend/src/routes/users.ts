@@ -220,15 +220,31 @@ router.delete("/:id", authenticate, requireRole("SUPER_ADMIN"), async (req: Auth
   }
 });
 
+const DEFAULT_ADMIN_PERMS = [
+  "view_reports", "view_gps", "view_objectives", "view_chiffres",
+];
+
 // ── GET permissions d'un admin ───────────────────────────────
-router.get("/:id/permissions", authenticate, requireRole("SUPER_ADMIN"), async (req, res) => {
+router.get("/:id/permissions", authenticate, async (req: AuthRequest, res) => {
   try {
+    // L'admin peut lire SES PROPRES permissions, le superadmin peut lire celles de n'importe qui
+    if (req.user!.role !== "SUPER_ADMIN" && req.user!.id !== req.params.id) {
+      return res.status(403).json({ error: "Accès refusé" });
+    }
+
     const user = await prisma.user.findUnique({
       where:  { id: req.params.id },
       select: { id: true, role: true, permissions: true } as any,
     });
     if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
-    res.json({ permissions: (user as any).permissions || [] });
+
+    const stored = (user as any).permissions;
+    // Si jamais configuré → retourner les défauts (pas un tableau vide)
+    const permissions = Array.isArray(stored) && stored.length > 0
+      ? stored
+      : DEFAULT_ADMIN_PERMS;
+
+    res.json({ permissions });
   } catch (err) {
     res.status(500).json({ error: "Erreur serveur" });
   }

@@ -5,9 +5,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const DEFAULT_ADMIN_PERMS = [
-  "view_gps","view_gps_history","view_reports","validate_reports","export_pdf",
-  "view_objectives","edit_objectives","manage_delegates","send_notifications",
-  "manage_planning","view_chiffres","edit_chiffres"
+  "view_reports", "view_gps", "view_objectives", "view_chiffres",
 ];
 
 // Cache en mémoire (TTL 30s) pour éviter une requête DB à chaque appel API
