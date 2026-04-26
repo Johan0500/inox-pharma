@@ -2,6 +2,7 @@ import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import PDFDocument      from "pdfkit";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { requirePerm } from "../middleware/checkPermission";
 import { sendPushToAdmins, sendPushToUser } from "./notifications";
 
 const router = Router();
@@ -80,7 +81,7 @@ router.post("/", authenticate, requireRole("DELEGATE"), async (req: AuthRequest,
 });
 
 // ── Liste des rapports (filtré par rôle + labo) ───────────────
-router.get("/", authenticate, async (req: AuthRequest, res) => {
+router.get("/", authenticate, requirePerm("view_reports"), async (req: AuthRequest, res) => {
   try {
     const { delegateId, from, to, page = "1", limit = "20", validationStatus } = req.query as any;
     const where: any = {};
@@ -148,7 +149,7 @@ router.get("/:id", authenticate, async (req, res) => {
 
 // ── VALIDATION d'un rapport (admin/superadmin) ───────────────
 // Le résultat est visible par le délégué ET envoyé en notification push
-router.patch("/:id/validate", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+router.patch("/:id/validate", authenticate, requirePerm("validate_reports"), async (req: AuthRequest, res) => {
   try {
     const { status, comment } = req.body as { status: "APPROVED" | "REJECTED"; comment?: string };
     if (!["APPROVED", "REJECTED"].includes(status))
@@ -223,7 +224,7 @@ router.delete("/:id", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (
 });
 
 // ── Export PDF (filtré par rôle + labo) ──────────────────────
-router.get("/export/pdf", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+router.get("/export/pdf", authenticate, requirePerm("export_pdf"), async (req: AuthRequest, res) => {
   try {
     const { from, to, delegateId } = req.query as any;
     const where: any = await buildLabWhere(req);

@@ -2,6 +2,7 @@ import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import ExcelJS          from "exceljs";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { requirePerm } from "../middleware/checkPermission";
 import { sendEmail, reportSubmittedEmail }         from "../utils/mailer";
 import { notifyAdmins }  from "./notifications"
 
@@ -60,7 +61,7 @@ function sumCA(lines: any[]): number {
 
 // ── Rapport courant ──────────────────────────────────────────
 
-router.get("/current", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+router.get("/current", authenticate, requirePerm("view_chiffres"), async (req: AuthRequest, res) => {
   try {
     const { month, year } = getMonthYear();
 
@@ -103,7 +104,7 @@ router.get("/current", authenticate, requireRole("ADMIN"), async (req: AuthReque
 
 // ── Rapport d'hier ───────────────────────────────────────────
 
-router.get("/yesterday", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+router.get("/yesterday", authenticate, requirePerm("view_chiffres"), async (req: AuthRequest, res) => {
   try {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -123,7 +124,7 @@ router.get("/yesterday", authenticate, requireRole("ADMIN"), async (req: AuthReq
 
 // ── Mettre à jour une ligne ──────────────────────────────────
 
-router.patch("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) => {
+router.patch("/line/:id", authenticate, requirePerm("edit_chiffres"), async (req, res) => {
   try {
     const line = await prisma.salesReportLine.update({
       where: { id: req.params.id },
@@ -138,7 +139,7 @@ router.patch("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) =
 
 // ── Ajouter un produit ───────────────────────────────────────
 
-router.post("/:id/line", authenticate, requireRole("ADMIN"), async (req, res) => {
+router.post("/:id/line", authenticate, requirePerm("edit_chiffres"), async (req, res) => {
   try {
     const { designation, pght } = req.body;
     if (!designation || !pght)
@@ -167,7 +168,7 @@ router.post("/:id/line", authenticate, requireRole("ADMIN"), async (req, res) =>
 
 // ── Supprimer une ligne ──────────────────────────────────────
 
-router.delete("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) => {
+router.delete("/line/:id", authenticate, requirePerm("edit_chiffres"), async (req, res) => {
   try {
     await prisma.salesReportLine.delete({ where: { id: req.params.id } });
     res.json({ message: "Ligne supprimée" });
@@ -179,7 +180,7 @@ router.delete("/line/:id", authenticate, requireRole("ADMIN"), async (req, res) 
 
 // ── Soumettre ────────────────────────────────────────────────
 
-router.post("/:id/submit", authenticate, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+router.post("/:id/submit", authenticate, requirePerm("edit_chiffres"), async (req: AuthRequest, res) => {
   try {
     const report = await prisma.salesReport.update({
       where:   { id: req.params.id },
@@ -236,7 +237,7 @@ router.post("/:id/submit", authenticate, requireRole("ADMIN"), async (req: AuthR
 
 // ── Réouvrir pour modification ───────────────────────────────
 
-router.post("/:id/reopen", authenticate, requireRole("ADMIN"), async (req, res) => {
+router.post("/:id/reopen", authenticate, requirePerm("edit_chiffres"), async (req, res) => {
   try {
     const report = await prisma.salesReport.update({
       where: { id: req.params.id },
@@ -251,7 +252,7 @@ router.post("/:id/reopen", authenticate, requireRole("ADMIN"), async (req, res) 
 
 // ── Export Excel ─────────────────────────────────────────────
 
-router.get("/export/excel", authenticate, requireRole("ADMIN", "SUPER_ADMIN"), async (req: AuthRequest, res) => {
+router.get("/export/excel", authenticate, requirePerm("export_excel"), async (req: AuthRequest, res) => {
   try {
     const report = await prisma.salesReport.findFirst({
       where:   req.user!.role === "ADMIN" ? { adminId: req.user!.id } : {},

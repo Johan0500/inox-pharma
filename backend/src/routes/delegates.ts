@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { requirePerm } from "../middleware/checkPermission";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // ── Liste des délégués ───────────────────────────────────────
-router.get("/", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+router.get("/", authenticate, requirePerm("manage_delegates"), async (req: AuthRequest, res) => {
   try {
     const labName = req.headers["x-lab"] as string;
     const where: any = {};

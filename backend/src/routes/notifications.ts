@@ -2,6 +2,7 @@ import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import webpush          from "web-push";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { requirePerm } from "../middleware/checkPermission";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -103,7 +104,7 @@ router.get("/vapid-key", (_req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
-router.post("/send", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+router.post("/send", authenticate, requirePerm("send_notifications"), async (req: AuthRequest, res) => {
   try {
     const { userId, title, body, url } = req.body;
     if (!title || !body)

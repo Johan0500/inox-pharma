@@ -21,7 +21,6 @@ router.post("/login", async (req, res) => {
         delegate:  { include: { laboratory: true } },
       },
     });
-
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ error: "Email ou mot de passe incorrect" });
 
@@ -64,13 +63,14 @@ router.post("/login", async (req, res) => {
     res.json({
       token,
       user: {
-        id:        user.id,
-        email:     user.email,
-        firstName: user.firstName,
-        lastName:  user.lastName,
-        role:      user.role,
-        isActive:  user.isActive,
+        id:          user.id,
+        email:       user.email,
+        firstName:   user.firstName,
+        lastName:    user.lastName,
+        role:        user.role,
+        isActive:    user.isActive,
         labs,
+        permissions: (user as any).permissions || [],
         delegate: user.delegate
           ? { id: user.delegate.id, zone: user.delegate.zone, status: user.delegate.status }
           : null,

@@ -2,6 +2,7 @@ import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import bcrypt           from "bcryptjs";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { invalidatePermCache } from "../middleware/checkPermission";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -250,9 +251,9 @@ router.put("/:id/permissions", authenticate, requireRole("SUPER_ADMIN"), async (
       data:  { permissions } as any,
     });
 
-    // Invalider la session de l'admin pour forcer le rechargement de ses permissions
-    // (optionnel — les permissions sont relues à chaque requête)
-    console.log(`🔒 Permissions mises à jour pour ${target.firstName} ${target.lastName}: ${permissions.join(", ")}`);
+    // Invalider le cache immédiatement — effet en moins de 30s
+    invalidatePermCache(req.params.id);
+    console.log(`🔒 Permissions mises à jour pour ${target.firstName} ${target.lastName}: [${permissions.join(", ")}]`);
 
     res.json({ message: "Permissions mises à jour", permissions });
   } catch (err) {

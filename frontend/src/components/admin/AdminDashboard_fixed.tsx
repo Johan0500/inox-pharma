@@ -1,5 +1,6 @@
 import { useState }   from "react";
 import { useAuth }    from "../../contexts/AuthContext";
+import { usePermission } from "../../hooks/usePermission";
 import { LabProvider, useLab } from "../../contexts/LabContext";
 import {
   LayoutDashboard, Users, Building2, Calendar,
@@ -57,31 +58,36 @@ function DashboardInner({ onChangeLab }: { onChangeLab?: () => void }) {
     refetchInterval: 15000,
   });
 
-  // ── Onglets — "Carte Pharmacies" retiré ──────────────────
+  const { hasPerm } = usePermission();
+
+  // ── Onglets — filtrés par rôle ET par permissions ────────
   const TABS = [
-    { id: "overview",       label: "Accueil",        icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "delegates",      label: "Délégués",        icon: Users,           roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pharmacies",     label: "Pharmacies",      icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "gps",            label: "GPS Temps Réel",  icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "planning",       label: "Planning",        icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "reports",        label: "Rapports",        icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "products",       label: "Produits",        icon: Package,         roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "strategie",      label: "Stratégie",       icon: BookOpen,        roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "chiffres",       label: "Chiffres",        icon: DollarSign,      roles: ["ADMIN"]               },
-    { id: "stats-chiffres", label: "Stats Chiffres",  icon: TrendingUp,      roles: ["SUPER_ADMIN"]         },
-    { id: "objectives",     label: "Objectifs",       icon: Target,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "stats",          label: "Statistiques",    icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "messages",       label: "Messagerie",      icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "history",        label: "Connexions",      icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "pdf-report",   label: "Rapport PDF",      icon: FileText,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "alertes",      label: "Alertes",           icon: Bell,           roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "suivi-obj",    label: "Suivi Objectifs",   icon: Target,         roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "validation",   label: "Validation",        icon: CheckCircle,    roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "templates",    label: "Templates Visite",  icon: ClipboardList,  roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "permissions",  label: "Permissions",       icon: Shield,         roles: ["SUPER_ADMIN"]         },
-    { id: "export",       label: "Export Excel/CSV",  icon: Download,       roles: ["SUPER_ADMIN","ADMIN"] },
-    { id: "users",          label: "Utilisateurs",    icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"] },
-  ].filter((t) => t.roles.includes(user?.role || ""));
+    { id: "overview",       label: "Accueil",        icon: LayoutDashboard, roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "delegates",      label: "Délégués",        icon: Users,           roles: ["SUPER_ADMIN","ADMIN"],  perm: "manage_delegates" },
+    { id: "pharmacies",     label: "Pharmacies",      icon: Building2,       roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "gps",            label: "GPS Temps Réel",  icon: MapPin,          roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_gps" },
+    { id: "planning",       label: "Planning",        icon: Calendar,        roles: ["SUPER_ADMIN","ADMIN"],  perm: "manage_planning" },
+    { id: "reports",        label: "Rapports",        icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_reports" },
+    { id: "products",       label: "Produits",        icon: Package,         roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "strategie",      label: "Stratégie",       icon: BookOpen,        roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "chiffres",       label: "Chiffres",        icon: DollarSign,      roles: ["ADMIN"],                perm: "view_chiffres" },
+    { id: "stats-chiffres", label: "Stats Chiffres",  icon: TrendingUp,      roles: ["SUPER_ADMIN"],          perm: null },
+    { id: "objectives",     label: "Objectifs",       icon: Target,          roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_objectives" },
+    { id: "stats",          label: "Statistiques",    icon: BarChart3,       roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "messages",       label: "Messagerie",      icon: MessageCircle,   roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+    { id: "history",        label: "Connexions",      icon: Shield,          roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_login_history" },
+    { id: "pdf-report",     label: "Rapport PDF",     icon: FileText,        roles: ["SUPER_ADMIN","ADMIN"],  perm: "export_pdf" },
+    { id: "alertes",        label: "Alertes",          icon: Bell,            roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_reports" },
+    { id: "suivi-obj",      label: "Suivi Objectifs",  icon: Target,          roles: ["SUPER_ADMIN","ADMIN"],  perm: "view_objectives" },
+    { id: "validation",     label: "Validation",       icon: CheckCircle,     roles: ["SUPER_ADMIN","ADMIN"],  perm: "validate_reports" },
+    { id: "templates",      label: "Templates Visite", icon: ClipboardList,   roles: ["SUPER_ADMIN","ADMIN"],  perm: "manage_delegates" },
+    { id: "permissions",    label: "Permissions",      icon: Shield,          roles: ["SUPER_ADMIN"],          perm: null },
+    { id: "export",         label: "Export Excel/CSV", icon: Download,        roles: ["SUPER_ADMIN","ADMIN"],  perm: "export_excel" },
+    { id: "users",          label: "Utilisateurs",     icon: Settings,        roles: ["SUPER_ADMIN","ADMIN"],  perm: null },
+  ].filter((t) =>
+    t.roles.includes(user?.role || "") &&
+    (t.perm === null || hasPerm(t.perm))
+  );
 
   const renderTab = () => {
     switch (activeTab) {

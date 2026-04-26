@@ -1,6 +1,7 @@
 import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
+import { requirePerm } from "../middleware/checkPermission";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -31,7 +32,7 @@ async function buildLabWhere(req: AuthRequest): Promise<any> {
 }
 
 // ── GET /gps/positions ───────────────────────────────────────
-router.get("/positions", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+router.get("/positions", authenticate, requirePerm("view_gps"), async (req: AuthRequest, res) => {
   try {
     const labWhere = await buildLabWhere(req);
 
@@ -88,7 +89,7 @@ router.get("/history/:delegateId", authenticate, async (req, res) => {
 });
 
 // ── GET /gps/history (admin — tous les délégués filtrés par labo) ──
-router.get("/history", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+router.get("/history", authenticate, requirePerm("view_gps_history"), async (req: AuthRequest, res) => {
   try {
     const { delegateId, date } = req.query as any;
     const labWhere = await buildLabWhere(req);
@@ -132,7 +133,7 @@ router.get("/history", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (
 });
 
 // ── GET /gps/checkins (admin — check-ins filtrés par labo + période) ─
-router.get("/checkins", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+router.get("/checkins", authenticate, requirePerm("view_gps_history"), async (req: AuthRequest, res) => {
   try {
     const { delegateId, from, to } = req.query as any;
     const labWhere = await buildLabWhere(req);
