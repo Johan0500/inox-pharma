@@ -131,4 +131,42 @@ router.get("/history", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (
   }
 });
 
+// ── GET /gps/checkins (admin — check-ins filtrés par labo + période) ─
+router.get("/checkins", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { delegateId, from, to } = req.query as any;
+    const labWhere = await buildLabWhere(req);
+
+    const allowedDelegates = labWhere.laboratoryId !== undefined
+      ? await prisma.delegate.findMany({ where: labWhere, select: { id: true } })
+      : null;
+
+    const where: any = {};
+    if (allowedDelegates) where.delegateId = { in: allowedDelegates.map((d) => d.id) };
+    if (delegateId) where.delegateId = delegateId;
+    if (from || to) {
+      where.timestamp = {};
+      if (from) where.timestamp.gte = new Date(from);
+      if (to)   where.timestamp.lte = new Date(to);
+    }
+
+    const checkIns = await prisma.checkIn.findMany({
+      where,
+      include: {
+        delegate: {
+          include: {
+            user:       { select: { firstName: true, lastName: true } },
+            laboratory: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { timestamp: "desc" },
+      take:    2000,
+    });
+    res.json(checkIns);
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 export default router;

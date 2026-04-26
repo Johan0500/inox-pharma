@@ -2,21 +2,44 @@ import { Router }       from "express";
 import { PrismaClient } from "@prisma/client";
 import PDFDocument      from "pdfkit";
 import { authenticate, requireRole, AuthRequest } from "../middleware/auth";
-import { sendPushToAdmins } from "./notifications";
+import { sendPushToAdmins, sendPushToUser } from "./notifications";
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// ── Créer un rapport de visite ───────────────────────────────
+// ── Helper filtre labo ────────────────────────────────────────
+async function buildLabWhere(req: AuthRequest): Promise<any> {
+  if (req.user!.role === "ADMIN") {
+    const labIds = await prisma.laboratory.findMany({
+      where:  { name: { in: req.user!.labs || [] } },
+      select: { id: true },
+    });
+    return { laboratoryId: { in: labIds.map((l) => l.id) } };
+  }
+  if (req.user!.role === "SUPER_ADMIN") {
+    const labName = req.headers["x-lab"] as string;
+    if (labName && labName !== "all") {
+      const lab = await prisma.laboratory.findFirst({ where: { name: labName } });
+      if (lab) return { laboratoryId: lab.id };
+    }
+    return {};
+  }
+  return {};
+}
+
+// ── Créer un rapport ─────────────────────────────────────────
 router.post("/", authenticate, requireRole("DELEGATE"), async (req: AuthRequest, res) => {
   try {
-    const { doctorName, specialty, pharmacyId, productsShown, notes, aiSummary } = req.body;
+    const { doctorName, specialty, pharmacyId, productsShown, notes, aiSummary, photos } = req.body;
     if (!doctorName || !notes)
       return res.status(400).json({ error: "Médecin et notes requis" });
 
     const delegate = await prisma.delegate.findUnique({
       where:   { userId: req.user!.id },
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: {
+        user:       { select: { firstName: true, lastName: true } },
+        laboratory: { select: { name: true } },
+      },
     });
     if (!delegate) return res.status(404).json({ error: "Profil délégué non trouvé" });
 
@@ -29,7 +52,9 @@ router.post("/", authenticate, requireRole("DELEGATE"), async (req: AuthRequest,
         pharmacyId:    pharmacyId    || null,
         productsShown: productsShown || null,
         notes,
-        aiSummary:     aiSummary     || null,
+        aiSummary:     aiSummary || null,
+        photos:        Array.isArray(photos) ? photos : [],
+        validationStatus: "PENDING",
       },
       include: {
         delegate:   { include: { user: { select: { firstName: true, lastName: true } } } },
@@ -38,43 +63,43 @@ router.post("/", authenticate, requireRole("DELEGATE"), async (req: AuthRequest,
       },
     });
 
-    // Notification push aux admins
+    // Notifier les admins du même laboratoire
     try {
       await sendPushToAdmins(
         "📋 Nouveau rapport de visite",
-        `${delegate.user.firstName} ${delegate.user.lastName} — Dr. ${doctorName}`,
+        `${delegate.user.firstName} ${delegate.user.lastName} — ${doctorName} (${delegate.laboratory.name})`,
         "/dashboard"
       );
     } catch {}
 
     res.status(201).json({ message: "Rapport enregistré", report });
   } catch (err) {
-    console.error("Report error:", err);
+    console.error("Report POST error:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
-// ── Liste des rapports ───────────────────────────────────────
+// ── Liste des rapports (filtré par rôle + labo) ───────────────
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { delegateId, from, to, page = "1", limit = "20" } = req.query as any;
+    const { delegateId, from, to, page = "1", limit = "20", validationStatus } = req.query as any;
     const where: any = {};
 
+    // Filtre par rôle
     if (req.user!.role === "ADMIN") {
-      const labIds = await prisma.laboratory.findMany({
-        where:  { name: { in: req.user!.labs || [] } },
-        select: { id: true },
-      });
-      where.laboratoryId = { in: labIds.map((l) => l.id) };
-    }
-
-    if (req.user!.role === "DELEGATE") {
+      const labWhere = await buildLabWhere(req);
+      Object.assign(where, labWhere);
+    } else if (req.user!.role === "DELEGATE") {
       const delegate = await prisma.delegate.findUnique({ where: { userId: req.user!.id } });
       if (delegate) where.delegateId = delegate.id;
+    } else if (req.user!.role === "SUPER_ADMIN") {
+      const labWhere = await buildLabWhere(req);
+      Object.assign(where, labWhere);
     }
 
-    if (delegateId) where.delegateId = delegateId;
-
+    // Filtres supplémentaires
+    if (delegateId)        where.delegateId       = delegateId;
+    if (validationStatus)  where.validationStatus = validationStatus;
     if (from || to) {
       where.visitDate = {};
       if (from) where.visitDate.gte = new Date(from);
@@ -97,12 +122,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
       prisma.visitReport.count({ where }),
     ]);
 
-    res.json({
-      reports,
-      total,
-      page:  parseInt(page),
-      pages: Math.ceil(total / parseInt(limit)),
-    });
+    res.json({ reports, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     res.status(500).json({ error: "Erreur serveur" });
   }
@@ -126,8 +146,74 @@ router.get("/:id", authenticate, async (req, res) => {
   }
 });
 
+// ── VALIDATION d'un rapport (admin/superadmin) ───────────────
+// Le résultat est visible par le délégué ET envoyé en notification push
+router.patch("/:id/validate", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { status, comment } = req.body as { status: "APPROVED" | "REJECTED"; comment?: string };
+    if (!["APPROVED", "REJECTED"].includes(status))
+      return res.status(400).json({ error: "Status invalide (APPROVED | REJECTED)" });
+
+    // Vérifier que l'admin a accès à ce rapport
+    const existing = await prisma.visitReport.findUnique({
+      where:   { id: req.params.id },
+      include: {
+        delegate:   { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        laboratory: { select: { name: true } },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: "Rapport non trouvé" });
+
+    // Vérifier accès labo pour ADMIN
+    if (req.user!.role === "ADMIN") {
+      const labWhere = await buildLabWhere(req);
+      if (labWhere.laboratoryId) {
+        const ids = labWhere.laboratoryId.in || [labWhere.laboratoryId];
+        if (!ids.includes(existing.laboratoryId))
+          return res.status(403).json({ error: "Accès refusé à ce rapport" });
+      }
+    }
+
+    const adminUser = await prisma.user.findUnique({
+      where:  { id: req.user!.id },
+      select: { firstName: true, lastName: true },
+    });
+    const adminName = `${adminUser?.firstName} ${adminUser?.lastName}`;
+
+    const updated = await prisma.visitReport.update({
+      where: { id: req.params.id },
+      data:  {
+        validationStatus:  status,
+        validationComment: comment || null,
+        validatedBy:       adminName,
+        validatedAt:       new Date(),
+      },
+    });
+
+    // Notifier le délégué du résultat
+    try {
+      const emoji   = status === "APPROVED" ? "✅" : "❌";
+      const label   = status === "APPROVED" ? "approuvé" : "rejeté";
+      const delegateUserId = existing.delegate.user.id;
+      await sendPushToUser(
+        delegateUserId,
+        `${emoji} Rapport ${label}`,
+        comment
+          ? `Votre rapport "${existing.doctorName}" a été ${label} : ${comment}`
+          : `Votre rapport "${existing.doctorName}" a été ${label} par ${adminName}`,
+        "/dashboard"
+      );
+    } catch {}
+
+    res.json({ message: `Rapport ${status}`, report: updated });
+  } catch (err) {
+    console.error("Validate error:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 // ── Supprimer un rapport ─────────────────────────────────────
-router.delete("/:id", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req, res) => {
+router.delete("/:id", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req, res) => {
   try {
     await prisma.visitReport.delete({ where: { id: req.params.id } });
     res.json({ message: "Rapport supprimé" });
@@ -136,19 +222,11 @@ router.delete("/:id", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (r
   }
 });
 
-// ── Export PDF ───────────────────────────────────────────────
-router.get("/export/pdf", authenticate, requireRole("SUPER_ADMIN","ADMIN"), async (req: AuthRequest, res) => {
+// ── Export PDF (filtré par rôle + labo) ──────────────────────
+router.get("/export/pdf", authenticate, requireRole("SUPER_ADMIN", "ADMIN"), async (req: AuthRequest, res) => {
   try {
-    const where: any = {};
     const { from, to, delegateId } = req.query as any;
-
-    if (req.user!.role === "ADMIN") {
-      const labIds = await prisma.laboratory.findMany({
-        where:  { name: { in: req.user!.labs || [] } },
-        select: { id: true },
-      });
-      where.laboratoryId = { in: labIds.map((l) => l.id) };
-    }
+    const where: any = await buildLabWhere(req);
 
     if (delegateId) where.delegateId = delegateId;
     if (from || to) {
@@ -187,31 +265,35 @@ router.get("/export/pdf", authenticate, requireRole("SUPER_ADMIN","ADMIN"), asyn
       doc.fillColor("#374151").fontSize(12).text("Aucun rapport trouvé pour cette période.", { align: "center" });
     }
 
-    reports.forEach((r, i) => {
+    reports.forEach((r: any, i: number) => {
       if (doc.y > 680) doc.addPage();
 
-      // Numéro + Médecin
+      const statusLabel = r.validationStatus === "APPROVED" ? "✓ Approuvé"
+                        : r.validationStatus === "REJECTED"  ? "✗ Rejeté"
+                        : "En attente";
+      const statusColor = r.validationStatus === "APPROVED" ? "#059669"
+                        : r.validationStatus === "REJECTED"  ? "#dc2626"
+                        : "#d97706";
+
       doc.fillColor("#0f172a").fontSize(13).font("Helvetica-Bold")
          .text(`${i + 1}. Dr. ${r.doctorName}`);
 
-      // Infos
       doc.fillColor("#374151").fontSize(10).font("Helvetica")
          .text(`Délégué : ${r.delegate.user.firstName} ${r.delegate.user.lastName}   |   Labo : ${r.laboratory.name}`)
          .text(`Date : ${new Date(r.visitDate).toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}`);
 
+      doc.fillColor(statusColor).font("Helvetica-Bold").fontSize(9).text(`Statut : ${statusLabel}`);
+      if (r.validationComment) doc.fillColor("#6b7280").font("Helvetica").fontSize(9).text(`→ "${r.validationComment}"`);
+
+      doc.fillColor("#374151").font("Helvetica").fontSize(10);
       if (r.specialty)     doc.text(`Spécialité : ${r.specialty}`);
       if (r.pharmacy)      doc.text(`Pharmacie : ${r.pharmacy.nom}${r.pharmacy.ville ? " — " + r.pharmacy.ville : ""}`);
       if (r.productsShown) doc.text(`Produits : ${r.productsShown}`);
+      if (r.photos?.length) doc.fillColor("#6b7280").text(`Photos : ${r.photos.length} photo(s) jointe(s)`);
 
       doc.moveDown(0.5);
       doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(10).text("Notes :");
       doc.fillColor("#374151").font("Helvetica").fontSize(10).text(r.notes || "—", { indent: 10 });
-
-      if (r.aiSummary) {
-        doc.moveDown(0.3);
-        doc.fillColor("#7c3aed").font("Helvetica-Bold").fontSize(10).text("✨ Résumé IA :");
-        doc.fillColor("#5b21b6").font("Helvetica").fontSize(10).text(r.aiSummary, { indent: 10 });
-      }
 
       doc.moveDown(0.5);
       doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#e5e7eb").lineWidth(1).stroke();

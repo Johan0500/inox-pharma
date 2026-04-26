@@ -218,8 +218,46 @@ export default function MyDashboard() {
                   day: "2-digit", month: "long", year: "numeric"
                 })}
               </p>
+              {/* Statut de validation visible par le délégué */}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {reports[0].validationStatus === "APPROVED" && (
+                  <span style={{ fontSize:10, padding:"2px 8px", borderRadius:20, background:"#d1fae5", color:"#065f46", fontWeight:600 }}>
+                    ✅ Approuvé par {reports[0].validatedBy}
+                  </span>
+                )}
+                {reports[0].validationStatus === "REJECTED" && (
+                  <span style={{ fontSize:10, padding:"2px 8px", borderRadius:20, background:"#fee2e2", color:"#dc2626", fontWeight:600 }}>
+                    ❌ Rejeté — {reports[0].validationComment || "sans commentaire"}
+                  </span>
+                )}
+                {(!reports[0].validationStatus || reports[0].validationStatus === "PENDING") && (
+                  <span style={{ fontSize:10, padding:"2px 8px", borderRadius:20, background:"#fef3c7", color:"#d97706", fontWeight:600 }}>
+                    ⏳ En attente de validation
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+          {/* Liste des 5 derniers rapports avec statut */}
+          {reports.length > 1 && (
+            <div className="mt-3 space-y-1">
+              <p className="text-xs font-semibold text-gray-500 mb-1">Mes rapports récents</p>
+              {reports.slice(0, 5).map((r: any) => (
+                <div key={r.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", background:"#f9fafb", borderRadius:10 }}>
+                  <p style={{ fontSize:11, color:"#374151", margin:0, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {r.specialty === "RAPPORT HEBDOMADAIRE" ? "Rapport Hebdo" : `Dr. ${r.doctorName}`}
+                  </p>
+                  <span style={{
+                    fontSize:9, padding:"1px 6px", borderRadius:20, fontWeight:700, flexShrink:0, marginLeft:8,
+                    background: r.validationStatus==="APPROVED" ? "#d1fae5" : r.validationStatus==="REJECTED" ? "#fee2e2" : "#fef3c7",
+                    color: r.validationStatus==="APPROVED" ? "#065f46" : r.validationStatus==="REJECTED" ? "#dc2626" : "#d97706",
+                  }}>
+                    {r.validationStatus==="APPROVED" ? "✅" : r.validationStatus==="REJECTED" ? "❌" : "⏳"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

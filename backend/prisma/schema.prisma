@@ -241,20 +241,25 @@ model DelegateObjective {
 }
 
 model VisitReport {
-  id            String     @id @default(cuid())
-  delegateId    String
-  laboratoryId  String
-  pharmacyId    String?
-  doctorName    String
-  specialty     String?
-  productsShown String?
-  notes         String
-  aiSummary     String?
-  visitDate     DateTime   @default(now())
-  createdAt     DateTime   @default(now())
-  delegate      Delegate   @relation(fields: [delegateId], references: [id])
-  laboratory    Laboratory @relation(fields: [laboratoryId], references: [id])
-  pharmacy      Pharmacy?  @relation(fields: [pharmacyId], references: [id])
+  id                 String     @id @default(cuid())
+  delegateId         String
+  laboratoryId       String
+  pharmacyId         String?
+  doctorName         String
+  specialty          String?
+  productsShown      String?
+  notes              String
+  aiSummary          String?
+  photos             String[]   @default([])
+  validationStatus   String     @default("PENDING")
+  validationComment  String?
+  validatedBy        String?
+  validatedAt        DateTime?
+  visitDate          DateTime   @default(now())
+  createdAt          DateTime   @default(now())
+  delegate           Delegate   @relation(fields: [delegateId], references: [id])
+  laboratory         Laboratory @relation(fields: [laboratoryId], references: [id])
+  pharmacy           Pharmacy?  @relation(fields: [pharmacyId], references: [id])
 }
 
 model SalesReport {
