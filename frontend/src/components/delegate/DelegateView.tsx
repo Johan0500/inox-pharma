@@ -10,7 +10,7 @@ import api               from "../../services/api";
 import { setupAutoSync } from "../../services/offlineSync";
 
 import GeoTracker     from "./GeoTracker";
-import VisitReport    from "./VisitReport";
+import RapportsView   from "./RapportsView";
 import MyPlanning     from "./MyPlanning";
 import MyProducts     from "./MyProducts";
 import MyMessages     from "./MyMessages";
@@ -71,7 +71,7 @@ export default function DelegateView() {
   const renderTab = () => {
     switch (tab) {
       case "dashboard":  return <MyDashboard    />;
-      case "report":     return <VisitReport    />;
+      case "report":     return <RapportsView    />;
       case "planning":   return <MyPlanning     />;
       case "messages":   return <MyMessages     />;
       case "objectives": return <MyObjectives   />;

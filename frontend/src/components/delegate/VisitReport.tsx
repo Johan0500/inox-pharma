@@ -1,37 +1,17 @@
-import { useState }                   from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Save, Check, ChevronDown, X }  from "lucide-react";
-import api         from "../../services/api";
-import { useAuth } from "../../contexts/AuthContext";
+import { useState }       from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Save, Check }    from "lucide-react";
+import api                from "../../services/api";
+import { useAuth }        from "../../contexts/AuthContext";
 import { isOnline, saveReportOffline } from "../../services/offlineSync";
-import PhotoVisit  from "./PhotoVisit";
-
-// ── Charger les templates depuis localStorage (créés par l'admin) ─
-const TEMPLATES_KEY = "visite_templates";
-interface TemplateField {
-  id: string; label: string; type: string;
-  options?: string[]; required: boolean; placeholder: string;
-}
-interface Template {
-  id: string; name: string; category: string;
-  description: string; fields: TemplateField[]; createdAt: string;
-}
-function loadTemplates(): Template[] {
-  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || "[]"); } catch { return []; }
-}
 
 // ── Types ─────────────────────────────────────────────────────
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"] as const;
 type Jour = typeof JOURS[number];
 
 interface DayRow {
-  MG:         number;
-  SPECIALS:   number;
-  INTERNES:   number;
-  INFIRMIERS: number;
-  SAGE_F:     number;
-  PIQUTERIES: number;
-  OFFICINES:  number;
+  MG: number; SPECIALS: number; INTERNES: number;
+  INFIRMIERS: number; SAGE_F: number; PIQUTERIES: number; OFFICINES: number;
 }
 
 const EMPTY_DAY = (): DayRow => ({
@@ -47,7 +27,13 @@ const EMPTY_TABLE = (): TableData => {
   return t as TableData;
 };
 
-// ── Cellule numérique ────────────────────────────────────────
+const COLS_MED  = ["MG", "SPECIALS", "INTERNES"] as const;
+const COLS_PARA = ["INFIRMIERS", "SAGE_F", "PIQUTERIES", "OFFICINES"] as const;
+const COL_LABELS: Record<string, string> = {
+  MG: "MG", SPECIALS: "SPEC.", INTERNES: "INT.",
+  INFIRMIERS: "INF.", SAGE_F: "S.F.", PIQUTERIES: "PIQ.", OFFICINES: "OFF.",
+};
+
 function NumCell({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
     <input
@@ -60,11 +46,10 @@ function NumCell({ value, onChange }: { value: number; onChange: (v: number) => 
   );
 }
 
-export default function VisitReport() {
+export default function VisitReport({ onBack }: { onBack?: () => void }) {
   const { user } = useAuth();
   const qc       = useQueryClient();
 
-  // ── État RAH ─────────────────────────────────────────────
   const [semaineDu,     setSemaineDu]     = useState("");
   const [semaineAu,     setSemaineAu]     = useState("");
   const [mois,          setMois]          = useState("");
@@ -74,18 +59,10 @@ export default function VisitReport() {
   const [reflexMedical, setReflexMedical] = useState("");
   const [activConc,     setActivConc]     = useState("");
   const [propositions,  setPropositions]  = useState("");
-  const [photos,        setPhotos]        = useState<string[]>([]);
   const [rahSuccess,    setRahSuccess]    = useState(false);
   const [rahError,      setRahError]      = useState("");
   const [submitting,    setSubmitting]    = useState(false);
 
-  // ── Templates ────────────────────────────────────────────
-  const templates                                  = loadTemplates();
-  const [selectedTemplate, setSelectedTemplate]   = useState<Template | null>(null);
-  const [showTemplates,    setShowTemplates]       = useState(false);
-  const [extraFields,      setExtraFields]         = useState<Record<string, string>>({});
-
-  // ── Calculs ──────────────────────────────────────────────
   const getRowTotal = (row: DayRow) =>
     row.MG + row.SPECIALS + row.INTERNES + row.INFIRMIERS + row.SAGE_F + row.PIQUTERIES + row.OFFICINES;
 
@@ -98,11 +75,10 @@ export default function VisitReport() {
     setTableData(prev => ({ ...prev, [jour]: { ...prev[jour], [col]: val } }));
   };
 
-  // ── Soumission ───────────────────────────────────────────
   const submitRAH = async () => {
     setRahError(""); setRahSuccess(false);
     if (!semaineDu || !semaineAu) {
-      setRahError("Veuillez renseigner la période de la semaine (Du / Au)");
+      setRahError("Veuillez renseigner la période (Du / Au)");
       return;
     }
 
@@ -113,20 +89,12 @@ export default function VisitReport() {
 
     const notesComplet = [
       `=== RAPPORT HEBDOMADAIRE : ${semaineDu} au ${semaineAu}${mois ? ` (${mois})` : ""} ===`,
-      secteur       ? `SECTEUR: ${secteur}`                              : "",
+      secteur       ? `SECTEUR: ${secteur}`                                : "",
       `TABLEAU ACTIVITÉS: ${tableStr}`,
-      reflexPharm   ? `RÉFLEXIONS PHARMACEUTIQUES: ${reflexPharm}`       : "",
-      reflexMedical ? `RÉFLEXIONS MÉDICALES: ${reflexMedical}`           : "",
-      activConc     ? `ACTIVITÉS CONCURRENCE: ${activConc}`              : "",
-      propositions  ? `PROPOSITIONS VM: ${propositions}`                 : "",
-      // Champs du template sélectionné
-      selectedTemplate && Object.keys(extraFields).length > 0
-        ? `\n=== ${selectedTemplate.name.toUpperCase()} ===\n` +
-          selectedTemplate.fields
-            .filter(f => extraFields[f.id])
-            .map(f => `${f.label}: ${extraFields[f.id]}`)
-            .join("\n")
-        : "",
+      reflexPharm   ? `RÉFLEXIONS PHARMACEUTIQUES: ${reflexPharm}`         : "",
+      reflexMedical ? `RÉFLEXIONS MÉDICALES: ${reflexMedical}`             : "",
+      activConc     ? `ACTIVITÉS CONCURRENCE: ${activConc}`                : "",
+      propositions  ? `PROPOSITIONS VM: ${propositions}`                   : "",
     ].filter(Boolean).join("\n");
 
     const body = {
@@ -134,7 +102,7 @@ export default function VisitReport() {
       specialty:     "RAPPORT HEBDOMADAIRE",
       notes:         notesComplet,
       productsShown: `Total visites: ${grandTotal}`,
-      photos,
+      photos:        [] as string[],
     };
 
     setSubmitting(true);
@@ -146,17 +114,16 @@ export default function VisitReport() {
         return;
       }
       await api.post("/reports", body);
-      qc.invalidateQueries({ queryKey: ["reports-admin"] });
+      qc.invalidateQueries({ queryKey: ["my-reports-dashboard"] });
       setRahSuccess(true);
       setTimeout(() => {
         setTableData(EMPTY_TABLE());
         setReflexPharm(""); setReflexMedical("");
         setActivConc(""); setPropositions("");
         setSemaineDu(""); setSemaineAu(""); setMois("");
-        setPhotos([]);
-        setSelectedTemplate(null); setExtraFields({});
         setRahSuccess(false);
-      }, 2500);
+        onBack?.();
+      }, 2000);
     } catch {
       setRahError("Erreur lors de l'envoi. Réessayez.");
     } finally {
@@ -164,146 +131,35 @@ export default function VisitReport() {
     }
   };
 
-  const COLS_MED  = ["MG", "SPECIALS", "INTERNES"] as const;
-  const COLS_PARA = ["INFIRMIERS", "SAGE_F", "PIQUTERIES", "OFFICINES"] as const;
-  const COL_LABELS: Record<string, string> = {
-    MG: "MG", SPECIALS: "SPÉC.", INTERNES: "INT.",
-    INFIRMIERS: "INF.", SAGE_F: "S.F.", PIQUTERIES: "PIQ.", OFFICINES: "OFF.",
-  };
-
   return (
     <div className="space-y-4">
 
-      {/* Titre */}
-      <div className="flex items-center gap-2">
-        <ClipboardList size={22} className="text-emerald-600" />
-        <h2 className="text-xl font-bold text-gray-800">Rapport Hebdomadaire</h2>
-      </div>
-
-      {/* En-tête formulaire */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h3 className="text-center font-bold text-base text-gray-800 mb-4 uppercase tracking-wide">
-          Rapport d'Activité Hebdomadaire
-        </h3>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
+      {/* En-tête rapport */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">📅 Période</p>
+        <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">Semaine du *</label>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Du</label>
             <input type="date" value={semaineDu} onChange={e => setSemaineDu(e.target.value)}
               className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">Au *</label>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Au</label>
             <input type="date" value={semaineAu} onChange={e => setSemaineAu(e.target.value)}
               className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1 block">Mois</label>
-            <input value={mois} onChange={e => setMois(e.target.value)}
-              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Ex : Avril 2026" />
+            <input type="text" value={mois} onChange={e => setMois(e.target.value)}
+              placeholder="Ex: Janvier" className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
           </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">Secteur</label>
-            <input value={secteur} onChange={e => setSecteur(e.target.value)}
-              className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Votre secteur" />
-          </div>
+        </div>
+        <div className="mt-3">
+          <label className="text-xs font-semibold text-gray-500 mb-1 block">Secteur / Zone</label>
+          <input type="text" value={secteur} onChange={e => setSecteur(e.target.value)}
+            placeholder="Ex: Abidjan Nord" className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
         </div>
       </div>
-
-      {/* Sélecteur de template */}
-      {templates.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-bold text-gray-700 flex items-center gap-2">
-              <ClipboardList size={13} className="text-pink-500" />
-              Template de visite
-              <span className="text-gray-400 font-normal">(optionnel)</span>
-            </p>
-            {selectedTemplate && (
-              <button
-                type="button"
-                onClick={() => { setSelectedTemplate(null); setExtraFields({}); }}
-                style={{ background:"none", border:"none", cursor:"pointer", color:"#9ca3af" }}>
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Liste déroulante templates */}
-          {!selectedTemplate ? (
-            <div className="grid grid-cols-1 gap-2">
-              {templates.map(tpl => (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  onClick={() => { setSelectedTemplate(tpl); setExtraFields({}); setShowTemplates(false); }}
-                  style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#fdf2f8", border:"1.5px solid #fbcfe8", borderRadius:12, cursor:"pointer", textAlign:"left" }}>
-                  <span style={{ fontSize:18 }}>📋</span>
-                  <div>
-                    <p style={{ fontWeight:700, fontSize:13, color:"#111827", margin:0 }}>{tpl.name}</p>
-                    <p style={{ fontSize:11, color:"#9ca3af", margin:0 }}>{tpl.category} · {tpl.fields.length} champ(s)</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, padding:"8px 12px", background:"#fdf2f8", borderRadius:10 }}>
-                <span style={{ fontSize:16 }}>📋</span>
-                <div>
-                  <p style={{ fontWeight:700, fontSize:13, color:"#be185d", margin:0 }}>{selectedTemplate.name}</p>
-                  <p style={{ fontSize:11, color:"#9ca3af", margin:0 }}>{selectedTemplate.description}</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {selectedTemplate.fields.map(field => (
-                  <div key={field.id}>
-                    <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#374151", marginBottom:4 }}>
-                      {field.label} {field.required && <span style={{ color:"#dc2626" }}>*</span>}
-                    </label>
-                    {field.type === "textarea" ? (
-                      <textarea
-                        value={extraFields[field.id] || ""}
-                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
-                        placeholder={field.placeholder}
-                        rows={2}
-                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", resize:"none", boxSizing:"border-box" }} />
-                    ) : field.type === "select" ? (
-                      <select
-                        value={extraFields[field.id] || ""}
-                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
-                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", background:"white", boxSizing:"border-box" }}>
-                        <option value="">-- Choisir --</option>
-                        {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    ) : field.type === "checkbox" ? (
-                      <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
-                        <input
-                          type="checkbox"
-                          checked={extraFields[field.id] === "oui"}
-                          onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.checked ? "oui" : "non" }))}
-                          style={{ width:16, height:16, accentColor:"#be185d" }} />
-                        <span style={{ fontSize:13, color:"#374151" }}>{field.placeholder || "Oui"}</span>
-                      </label>
-                    ) : (
-                      <input
-                        type={field.type === "number" ? "number" : "text"}
-                        value={extraFields[field.id] || ""}
-                        onChange={e => setExtraFields(prev => ({ ...prev, [field.id]: e.target.value }))}
-                        placeholder={field.placeholder}
-                        style={{ width:"100%", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Tableau d'activité */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -361,10 +217,10 @@ export default function VisitReport() {
       {/* Sections qualitatives */}
       <div className="space-y-3">
         {[
-          { label: "Réflexions du corps pharmaceutique",         value: reflexPharm,   set: setReflexPharm,   color: "border-blue-200 bg-blue-50/40"   },
-          { label: "Réflexions du corps médical et paramédical", value: reflexMedical, set: setReflexMedical, color: "border-green-200 bg-green-50/40"  },
-          { label: "Activités de la concurrence",                value: activConc,     set: setActivConc,     color: "border-orange-200 bg-orange-50/40"},
-          { label: "Propositions et Suggestions du VM",          value: propositions,  set: setPropositions,  color: "border-purple-200 bg-purple-50/40"},
+          { label: "Réflexions du corps pharmaceutique",         value: reflexPharm,   set: setReflexPharm,   color: "border-blue-200 bg-blue-50/40"    },
+          { label: "Réflexions du corps médical et paramédical", value: reflexMedical, set: setReflexMedical, color: "border-green-200 bg-green-50/40"   },
+          { label: "Activités de la concurrence",                value: activConc,     set: setActivConc,     color: "border-orange-200 bg-orange-50/40" },
+          { label: "Propositions et Suggestions du VM",          value: propositions,  set: setPropositions,  color: "border-purple-200 bg-purple-50/40" },
         ].map(({ label, value, set, color }) => (
           <div key={label} className={`bg-white rounded-2xl shadow-sm border p-4 ${color}`}>
             <p className="text-xs font-bold text-gray-700 mb-2 underline underline-offset-2">{label}</p>
@@ -377,20 +233,11 @@ export default function VisitReport() {
         ))}
       </div>
 
-      {/* Photos de visite */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <p className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
-          📸 Photos de visite
-          <span className="text-gray-400 font-normal">— optionnel, max 5 photos</span>
-        </p>
-        <PhotoVisit onPhotosChange={setPhotos} maxPhotos={5} />
-      </div>
-
       {/* Messages */}
       {rahError   && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm font-medium">❌ {rahError}</div>}
       {rahSuccess && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center text-emerald-700 font-semibold flex items-center justify-center gap-2">
-          <Check size={18} /> Rapport hebdomadaire envoyé avec succès !
+          <Check size={18} /> Rapport hebdomadaire envoyé !
         </div>
       )}
 
@@ -400,13 +247,11 @@ export default function VisitReport() {
         disabled={submitting || rahSuccess}
         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition shadow-sm"
       >
-        {submitting ? (
-          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Envoi en cours…</>
-        ) : (
-          <><Save size={16} /> Envoyer le Rapport Hebdomadaire</>
-        )}
+        {submitting
+          ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Envoi en cours…</>
+          : <><Save size={16} /> Envoyer le Rapport Hebdomadaire</>
+        }
       </button>
-
     </div>
   );
 }
