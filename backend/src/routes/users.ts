@@ -219,4 +219,46 @@ router.delete("/:id", authenticate, requireRole("SUPER_ADMIN"), async (req: Auth
   }
 });
 
+// ── GET permissions d'un admin ───────────────────────────────
+router.get("/:id/permissions", authenticate, requireRole("SUPER_ADMIN"), async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where:  { id: req.params.id },
+      select: { id: true, role: true, permissions: true } as any,
+    });
+    if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
+    res.json({ permissions: (user as any).permissions || [] });
+  } catch (err) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// ── SET permissions d'un admin (superadmin only) ─────────────
+router.put("/:id/permissions", authenticate, requireRole("SUPER_ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { permissions } = req.body as { permissions: string[] };
+    if (!Array.isArray(permissions))
+      return res.status(400).json({ error: "permissions doit être un tableau" });
+
+    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!target) return res.status(404).json({ error: "Utilisateur non trouvé" });
+    if (target.role !== "ADMIN")
+      return res.status(400).json({ error: "On ne peut définir des permissions que pour un ADMIN" });
+
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data:  { permissions } as any,
+    });
+
+    // Invalider la session de l'admin pour forcer le rechargement de ses permissions
+    // (optionnel — les permissions sont relues à chaque requête)
+    console.log(`🔒 Permissions mises à jour pour ${target.firstName} ${target.lastName}: ${permissions.join(", ")}`);
+
+    res.json({ message: "Permissions mises à jour", permissions });
+  } catch (err) {
+    console.error("Set permissions error:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 export default router;
