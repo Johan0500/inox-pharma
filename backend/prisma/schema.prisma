@@ -34,6 +34,8 @@ model User {
   emailSchedules              EmailSchedule[]
   emailScheduleRecipients     EmailScheduleRecipient[]
   avatar String?
+  permissions    String[]       @default([])
+  visitTemplates VisitTemplate[] @relation("VisitTemplateCreator")
 }
 
 model ActiveSession {
@@ -207,6 +209,20 @@ model CheckIn {
   placeName  String
   timestamp  DateTime @default(now())
   delegate   Delegate @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+}
+
+model VisitTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  description String   @default("")
+  emoji       String   @default("clipboard")
+  isReport    Boolean  @default(true)
+  fields      Json     @default("[]")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  creator     User     @relation("VisitTemplateCreator", fields: [createdBy], references: [id], onDelete: Cascade)
 }
 
 model WeeklyPlanning {
