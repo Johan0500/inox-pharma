@@ -22,6 +22,7 @@ import salesReportRoutes  from "./routes/salesReports";
 import messageRoutes      from "./routes/messages";
 import notificationRoutes from "./routes/notifications";
 import objectiveRoutes    from "./routes/objectives";
+import strategieRoutes    from "./routes/strategies";
 import visitTemplateRoutes from "./routes/visitTemplates";
 import { setupGPSSocket } from "./socket/gpsSocket";
 import { checkInactiveDelegates } from "./utils/alerts";
